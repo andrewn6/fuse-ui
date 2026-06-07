@@ -1,4 +1,4 @@
-# Myapp
+# Fuse
 
 To start your Phoenix server:
 

@@ -20,6 +20,16 @@ config :fuse, FuseWeb.Endpoint,
 # In test we don't send emails
 config :fuse, Fuse.Mailer, adapter: Swoosh.Adapters.Test
 
+# Use the in-memory fake fuse client by default; HTTP client tests override the
+# Fuse.Client.HTTP block per-test with a Req plug stub. retry: false keeps
+# error-path tests from triggering Req's transient-failure retries.
+config :fuse, :fuse_client, Fuse.Client.Fake
+
+config :fuse, Fuse.Client.HTTP,
+  base_url: "http://fuse.test",
+  token: "test-token",
+  req_options: [retry: false]
+
 # Disable swoosh api client as it is only required for production adapters
 config :swoosh, :api_client, false
 

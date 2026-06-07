@@ -20,6 +20,13 @@ if System.get_env("PHX_SERVER") do
   config :fuse, FuseWeb.Endpoint, server: true
 end
 
+# Fuse orchestrator endpoint + bearer token (any environment, when provided).
+if base_url = System.get_env("FUSE_BASE_URL") do
+  config :fuse, Fuse.Client.HTTP,
+    base_url: base_url,
+    token: System.get_env("FUSE_TOKEN")
+end
+
 if config_env() == :prod do
   database_path =
     System.get_env("DATABASE_PATH") ||

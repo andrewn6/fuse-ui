@@ -83,6 +83,23 @@ defmodule Fuse.ResourceSpec do
     |> put_optional("max_runtime_seconds", spec.max_runtime_seconds)
   end
 
+  @doc """
+  Leniently decode a wire spec map (string- or atom-keyed) into a struct.
+
+  Unlike `new/1`, this performs **no validation** — it is for decoding fuse's
+  responses, where fields fuse considers zero/default may be omitted. Missing
+  fields become `nil`.
+
+  ## Examples
+
+      iex> Fuse.ResourceSpec.from_wire(%{"cpus" => 2, "ram_mb" => 2048})
+      %Fuse.ResourceSpec{cpus: 2, ram_mb: 2048, storage_gb: nil, region: nil, max_runtime_seconds: nil}
+  """
+  @spec from_wire(map()) :: t()
+  def from_wire(attrs) when is_map(attrs) do
+    struct(__MODULE__, for(field <- @fields, into: %{}, do: {field, fetch(attrs, field)}))
+  end
+
   defp normalize(attrs) do
     for field <- @fields, into: %{}, do: {field, fetch(attrs, field)}
   end

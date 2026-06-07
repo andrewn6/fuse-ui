@@ -11,6 +11,12 @@ config :fuse,
   ecto_repos: [Fuse.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+# Fuse orchestrator REST client. The HTTP impl is the default; tests swap in
+# Fuse.Client.Fake. base_url/token are typically set in config/runtime.exs.
+config :fuse, :fuse_client, Fuse.Client.HTTP
+
+config :fuse, Fuse.Client.HTTP, base_url: "http://localhost:8080"
+
 # Configures the endpoint
 config :fuse, FuseWeb.Endpoint,
   url: [host: "localhost"],

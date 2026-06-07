@@ -1,0 +1,200 @@
+Goal
+====
+
+Build an Elixir/Phoenix API that works like a small self-hosted Upstash-style Redis manager for a queue system.
+
+The app should let us create, size, inspect, update, and delete Redis-backed queue instances that run locally in Docker containers. Phoenix will expose the API and real-time dashboard. Docker will provide isolated Redis instances.
+
+Current state
+=============
+
+- Phoenix app has already been created at ./myapp.
+- App name/module prefix is Myapp.
+- Phoenix 1.8, LiveView, PubSub, Req, Ecto, and SQLite are already present.
+- We should use Req for HTTP calls instead of adding another HTTP client.
+
+Core concepts
+=============
+
+- Redis instance: one managed Docker container running Redis.
+- Queue: a logical queue stored inside one Redis instance, likely using Redis lists or streams.
+- Plan/size: CPU and memory settings applied to the Docker container.
+- Runtime stats: current container state plus Redis key/queue metrics.
+- API token: future auth layer for protecting instance operations.
+
+First milestone: local container lifecycle
+==========================================
+
+1. Add a `RedisInstances` context.
+2. Add an Ecto schema for managed Redis instances.
+3. Store at least these fields:
+   - name
+   - docker_container_id
+   - docker_container_name
+   - image
+   - host
+   - port
+   - memory_mb
+   - cpu_limit
+   - status
+   - last_seen_at
+4. Add migrations for the schema.
+5. Add create/list/get/update/delete functions in the context.
+6. Do not shell out to Docker as the main integration path. Use Docker's local API.
+7. Start with Docker over the local Unix socket if practical. If Req cannot talk to the socket cleanly, add a tiny Docker client abstraction so the transport can be swapped later.
+
+Docker operations
+=================
+
+Implement a small Docker client module, probably `Myapp.DockerClient`, with functions for:
+
+- create_container(instance_attrs)
+- start_container(container_id)
+- stop_container(container_id)
+- remove_container(container_id)
+- inspect_container(container_id)
+- list_containers(filters \\ [])
+- update_container_resources(container_id, resource_attrs)
+
+Redis container defaults
+========================
+
+- Image: redis:7-alpine
+- One container per managed Redis instance.
+- Bind Redis to a random available localhost port at first.
+- Use predictable Docker names like `myapp-redis-<slug>`.
+- Set restart policy to `unless-stopped` or `no` for development. Decide before productionizing.
+- Add labels to every container so this app can identify owned resources:
+  - app=myapp
+  - managed_by=myapp
+  - redis_instance_id=<database id>
+
+Sizing model
+============
+
+Start with a simple local sizing model:
+
+- tiny: 128 MB memory, low CPU share
+- small: 256 MB memory
+- medium: 512 MB memory
+- large: 1024 MB memory
+
+For MVP, expose memory_mb and cpu_limit directly through internal functions and validate they are within safe local bounds.
+
+API endpoints
+=============
+
+Start with JSON endpoints under `/api`:
+
+- GET /api/redis_instances
+- POST /api/redis_instances
+- GET /api/redis_instances/:id
+- PATCH /api/redis_instances/:id
+- DELETE /api/redis_instances/:id
+- POST /api/redis_instances/:id/start
+- POST /api/redis_instances/:id/stop
+- GET /api/redis_instances/:id/stats
+- GET /api/redis_instances/:id/queues
+
+Keep the controller layer thin. Controllers should call the context and return JSON.
+
+Queue visibility
+================
+
+For each Redis instance, we need a real-time way to track:
+
+- number of queues
+- queue names/keys
+- queue length
+- recent values or sample payloads where safe
+- memory usage if available
+
+Implementation options to evaluate:
+
+- Use Redis lists for a simple queue MVP: LPUSH/RPUSH + BRPOP/LPOP.
+- Use Redis streams for richer metadata and consumer groups.
+- Start read-only for queue inspection before adding enqueue/dequeue operations.
+
+Redis protocol access
+=====================
+
+Decide how the Phoenix app talks to Redis instances:
+
+- Option A: add a Redis client dependency such as Redix when implementation starts.
+- Option B: implement only minimal Redis protocol commands manually for discovery.
+
+Prefer Option A unless we have a reason to avoid dependencies. Req is for HTTP and Docker, not Redis protocol work.
+
+Real-time dashboard
+===================
+
+Add a LiveView dashboard after the JSON API works:
+
+- List managed Redis instances.
+- Show status, port, memory size, and queue count.
+- Show per-instance queue details.
+- Refresh stats through PubSub updates.
+- Use a supervised poller to periodically inspect Docker and Redis state.
+
+Supervision plan
+================
+
+Eventually add supervised processes for:
+
+- Docker state reconciliation.
+- Redis stats polling.
+- PubSub broadcasts for instance and queue changes.
+
+Possible modules:
+
+- Myapp.RedisInstances
+- Myapp.RedisInstances.RedisInstance
+- Myapp.DockerClient
+- Myapp.RedisClient
+- Myapp.RedisInstances.Reconciler
+- Myapp.RedisInstances.StatsPoller
+
+Testing plan
+============
+
+Start with tests that do not require Docker:
+
+- schema changeset validation
+- context CRUD behavior
+- controller JSON behavior using mocked/fake Docker client boundaries
+
+Then add optional integration tests that require Docker to be running:
+
+- create/start/inspect/stop/remove a real Redis container
+- verify resource limits are applied
+- verify Redis responds on the assigned port
+
+Use an environment flag like `DOCKER_INTEGRATION=1` so Docker tests do not run by default.
+
+Implementation order
+====================
+
+1. Create the RedisInstances schema, migration, and context.
+2. Add a Docker client abstraction with a fake/test implementation boundary.
+3. Implement create/start/stop/delete against Docker for local development.
+4. Add JSON API routes and controllers.
+5. Add stats inspection for Docker container state.
+6. Add Redis client support for queue/key inspection.
+7. Add LiveView dashboard for real-time visibility.
+8. Add polling/reconciliation with PubSub broadcasts.
+9. Add auth/API tokens before exposing outside localhost.
+10. Add production hardening: limits, validation, cleanup jobs, observability, and deployment docs.
+
+Open decisions
+==============
+
+- Should queues use Redis lists or Redis streams for the first MVP?
+- Should the service manage one queue per Redis container or many queues per container?
+- Should containers persist data using Docker volumes, or is ephemeral local state acceptable for MVP?
+- What auth model should protect the API: static admin token, generated API keys, or user accounts?
+- Should this stay local-only, or should it be designed for remote Docker hosts later?
+
+Immediate next task
+===================
+
+Inside ./myapp, implement the RedisInstances schema, migration, context, and tests before touching Docker integration.
