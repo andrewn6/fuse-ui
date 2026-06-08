@@ -7,6 +7,7 @@ defmodule Fuse.Snapshots.Snapshot do
   """
 
   alias Fuse.SnapshotState
+  alias Fuse.Wire
 
   defmodule Export do
     @moduledoc "A single export destination attached to a snapshot."
@@ -27,20 +28,11 @@ defmodule Fuse.Snapshots.Snapshot do
       %__MODULE__{
         destination: map["destination"],
         status: map["status"],
-        requested_at: parse_datetime(map["requested_at"]),
-        updated_at: parse_datetime(map["updated_at"]),
+        requested_at: Fuse.Wire.parse_datetime(map["requested_at"]),
+        updated_at: Fuse.Wire.parse_datetime(map["updated_at"]),
         last_error: map["last_error"]
       }
     end
-
-    defp parse_datetime(value) when is_binary(value) do
-      case DateTime.from_iso8601(value) do
-        {:ok, datetime, _offset} -> datetime
-        {:error, _reason} -> nil
-      end
-    end
-
-    defp parse_datetime(_value), do: nil
   end
 
   @type t :: %__MODULE__{
@@ -92,9 +84,9 @@ defmodule Fuse.Snapshots.Snapshot do
       state: map["state"],
       comment: map["comment"],
       size_bytes: map["size_bytes"],
-      created_at: parse_datetime(map["created_at"]),
-      updated_at: parse_datetime(map["updated_at"]),
-      retention_until: parse_datetime(map["retention_until"]),
+      created_at: Wire.parse_datetime(map["created_at"]),
+      updated_at: Wire.parse_datetime(map["updated_at"]),
+      retention_until: Wire.parse_datetime(map["retention_until"]),
       last_error: map["last_error"],
       export_ref: map["export_ref"],
       exports: decode_exports(map["exports"])
@@ -111,13 +103,4 @@ defmodule Fuse.Snapshots.Snapshot do
 
   defp decode_exports(list) when is_list(list), do: Enum.map(list, &Export.from_wire/1)
   defp decode_exports(_other), do: []
-
-  defp parse_datetime(value) when is_binary(value) do
-    case DateTime.from_iso8601(value) do
-      {:ok, datetime, _offset} -> datetime
-      {:error, _reason} -> nil
-    end
-  end
-
-  defp parse_datetime(_value), do: nil
 end
