@@ -10,6 +10,7 @@ defmodule Fuse.Environments.Environment do
 
   alias Fuse.ResourceSpec
   alias Fuse.State
+  alias Fuse.Wire
 
   @type t :: %__MODULE__{
           id: String.t(),
@@ -36,8 +37,8 @@ defmodule Fuse.Environments.Environment do
       url: map["url"],
       spec: decode_spec(map["spec"]),
       error: map["error"],
-      created_at: parse_datetime(map["created_at"]),
-      updated_at: parse_datetime(map["updated_at"])
+      created_at: Wire.parse_datetime(map["created_at"]),
+      updated_at: Wire.parse_datetime(map["updated_at"])
     }
   end
 
@@ -51,13 +52,4 @@ defmodule Fuse.Environments.Environment do
 
   defp decode_spec(spec) when is_map(spec), do: ResourceSpec.from_wire(spec)
   defp decode_spec(_), do: nil
-
-  defp parse_datetime(value) when is_binary(value) do
-    case DateTime.from_iso8601(value) do
-      {:ok, datetime, _offset} -> datetime
-      {:error, _reason} -> nil
-    end
-  end
-
-  defp parse_datetime(_value), do: nil
 end
