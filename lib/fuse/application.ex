@@ -14,8 +14,9 @@ defmodule Fuse.Application do
        repos: Application.fetch_env!(:fuse, :ecto_repos), skip: skip_migrations?()},
       {DNSCluster, query: Application.get_env(:fuse, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Fuse.PubSub},
-      # Start a worker by calling: Fuse.Worker.start_link(arg)
-      # {Fuse.Worker, arg},
+      # Event streaming: registry (one consumer per vm_id) + its dynamic supervisor.
+      {Registry, keys: :unique, name: Fuse.EventStream.Registry},
+      Fuse.EventStream.Supervisor,
       # Start to serve requests, typically the last entry
       FuseWeb.Endpoint
     ]
