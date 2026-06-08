@@ -66,9 +66,9 @@ defmodule Fuse.Hosts.Host do
       state: map["state"],
       capacity: decode_capacity(map["capacity"]),
       allocated: decode_capacity(map["allocated"]),
-      last_seen: parse_datetime(map["last_seen"]),
-      created_at: parse_datetime(map["created_at"]),
-      updated_at: parse_datetime(map["updated_at"])
+      last_seen: Fuse.Wire.parse_datetime(map["last_seen"]),
+      created_at: Fuse.Wire.parse_datetime(map["created_at"]),
+      updated_at: Fuse.Wire.parse_datetime(map["updated_at"])
     }
   end
 
@@ -86,13 +86,4 @@ defmodule Fuse.Hosts.Host do
 
   defp decode_capacity(map) when is_map(map), do: Capacity.from_wire(map)
   defp decode_capacity(_other), do: nil
-
-  defp parse_datetime(value) when is_binary(value) do
-    case DateTime.from_iso8601(value) do
-      {:ok, datetime, _offset} -> datetime
-      {:error, _reason} -> nil
-    end
-  end
-
-  defp parse_datetime(_value), do: nil
 end

@@ -25,6 +25,10 @@ config :fuse, Fuse.Mailer, adapter: Swoosh.Adapters.Test
 # error-path tests from triggering Req's transient-failure retries.
 config :fuse, :fuse_client, Fuse.Client.Fake
 
+# Event streaming uses the in-memory fake source; consumer tests drive frames by
+# sending the consumer process messages the fake hands back through parse/2.
+config :fuse, :event_source, Fuse.EventStream.Source.Fake
+
 config :fuse, Fuse.Client.HTTP,
   base_url: "http://fuse.test",
   token: "test-token",

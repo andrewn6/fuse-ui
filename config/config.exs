@@ -17,6 +17,9 @@ config :fuse, :fuse_client, Fuse.Client.HTTP
 
 config :fuse, Fuse.Client.HTTP, base_url: "http://localhost:8080"
 
+# SSE event-stream source; the HTTP impl is the default, tests swap in the fake.
+config :fuse, :event_source, Fuse.EventStream.Source.HTTP
+
 # Configures the endpoint
 config :fuse, FuseWeb.Endpoint,
   url: [host: "localhost"],
