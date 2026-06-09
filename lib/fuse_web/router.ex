@@ -14,6 +14,13 @@ defmodule FuseWeb.Router do
     plug :accepts, ["json"]
   end
 
+  # Inbound auth for the control-plane API. Mirrors fuse's access-control model
+  # (bearer token now; CIDR allowlist to follow in the safety round). No-op when
+  # CONTROL_PLANE_TOKEN is unset, so this layer is opt-in per deployment.
+  pipeline :api_protected do
+    plug FuseWeb.Plugs.ApiAuth
+  end
+
   scope "/", FuseWeb do
     pipe_through :browser
 
@@ -21,7 +28,7 @@ defmodule FuseWeb.Router do
   end
 
   scope "/api/v1", FuseWeb.API do
-    pipe_through :api
+    pipe_through [:api, :api_protected]
 
     get "/environments", EnvironmentController, :index
     post "/environments", EnvironmentController, :create

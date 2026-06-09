@@ -20,6 +20,10 @@ config :fuse, Fuse.Client.HTTP, base_url: "http://localhost:8080"
 # SSE event-stream source; the HTTP impl is the default, tests swap in the fake.
 config :fuse, :event_source, Fuse.EventStream.Source.HTTP
 
+# Inbound control-plane API auth (callers -> this app). Distinct from the outbound
+# fuse token. nil = auth disabled (dev/test); set CONTROL_PLANE_TOKEN in runtime.exs.
+config :fuse, FuseWeb.Plugs.ApiAuth, token: nil
+
 # Configures the endpoint
 config :fuse, FuseWeb.Endpoint,
   url: [host: "localhost"],

@@ -27,6 +27,13 @@ if base_url = System.get_env("FUSE_BASE_URL") do
     token: System.get_env("FUSE_TOKEN")
 end
 
+# Inbound control-plane API token (callers -> this app). When unset, the API
+# accepts unauthenticated requests (insecure/dev mode), matching fuse's own
+# "empty token disables auth" behaviour — set this in production.
+if token = System.get_env("CONTROL_PLANE_TOKEN") do
+  config :fuse, FuseWeb.Plugs.ApiAuth, token: token
+end
+
 if config_env() == :prod do
   database_path =
     System.get_env("DATABASE_PATH") ||
