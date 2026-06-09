@@ -20,10 +20,27 @@ defmodule FuseWeb.Router do
     get "/", PageController, :home
   end
 
-  # Other scopes may use custom stacks.
-  # scope "/api", FuseWeb do
-  #   pipe_through :api
-  # end
+  scope "/api/v1", FuseWeb.API do
+    pipe_through :api
+
+    get "/environments", EnvironmentController, :index
+    post "/environments", EnvironmentController, :create
+    get "/environments/:id", EnvironmentController, :show
+    post "/environments/:id", EnvironmentController, :update
+    delete "/environments/:id", EnvironmentController, :destroy
+
+    post "/environments/:vm_id/snapshots", SnapshotController, :create
+    get "/snapshots", SnapshotController, :index
+    get "/snapshots/:id", SnapshotController, :show
+    post "/snapshots/:id", SnapshotController, :update
+    delete "/snapshots/:id", SnapshotController, :destroy
+
+    get "/hosts", HostController, :index
+    post "/hosts", HostController, :create
+    get "/hosts/:id", HostController, :show
+    post "/hosts/:id", HostController, :update
+    delete "/hosts/:id", HostController, :destroy
+  end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:fuse, :dev_routes) do
