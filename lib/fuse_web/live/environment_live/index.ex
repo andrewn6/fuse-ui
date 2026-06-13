@@ -352,6 +352,72 @@ defmodule FuseWeb.EnvironmentLive.Index do
     """
   end
 
+  attr :visible, :integer, required: true
+  attr :total, :integer, required: true
+  attr :query, :string, required: true
+  attr :sort, :string, required: true
+  attr :sorts, :list, required: true
+  attr :active, :boolean, required: true
+
+  # A dark utility bar pinned to the bottom of the screen: result count +
+  # clear-filters on the left, sort + free-text filter on the right. Wired to the
+  # list's filter state. The free-text query matches env id or task_id (so it
+  # subsumes a separate task_id facet); the ⌘K hint focuses the command palette.
+  defp command_bar(assigns) do
+    ~H"""
+    <div class="sticky bottom-0 z-10 border-t border-black/30 bg-[#1b1714] px-6 py-2.5 text-[#ece6dd]">
+      <div class="mx-auto flex w-full max-w-5xl items-center gap-3">
+        <div class="flex items-center gap-2 text-[12px]">
+          <span class="tabular-nums text-[#b8b1a4]">
+            {@visible} <span class="text-[#8c8678]">of {@total}</span>
+          </span>
+          <button
+            :if={@active}
+            type="button"
+            phx-click="clear_filters"
+            class="inline-flex items-center gap-1 rounded-md border border-[#3a322a] bg-[#252019] px-2 py-0.5 text-[11px] text-[#b8b1a4] hover:text-[#ece6dd]"
+          >
+            <.icon name="hero-x-mark" class="size-3" /> Clear
+          </button>
+        </div>
+
+        <form phx-change="refine" class="ml-auto flex items-center gap-2">
+          <label class="flex items-center gap-1.5 text-[11px] text-[#8c8678]">
+            Sort
+            <select
+              name="sort"
+              class="rounded-md border border-[#332c24] bg-[#252019] px-2 py-1 text-[11px] text-[#ece6dd] focus:border-brand focus:outline-none"
+            >
+              <option :for={{value, label} <- @sorts} value={value} selected={@sort == value}>
+                {label}
+              </option>
+            </select>
+          </label>
+
+          <div class="relative">
+            <.icon
+              name="hero-magnifying-glass"
+              class="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-[#8c8678]"
+            />
+            <input
+              type="text"
+              name="query"
+              value={@query}
+              phx-debounce="150"
+              autocomplete="off"
+              placeholder="Filter environments…"
+              class="w-56 rounded-md border border-[#332c24] bg-[#252019] py-1 pl-7 pr-12 text-[12px] text-[#ece6dd] placeholder:text-[#8c8678] focus:border-brand focus:outline-none"
+            />
+            <kbd class="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-[#3a322a] bg-[#1b1714] px-1 text-[10px] text-[#8c8678]">
+              ⌘K
+            </kbd>
+          </div>
+        </form>
+      </div>
+    </div>
+    """
+  end
+
   attr :form, :any, required: true
   attr :plans, :list, required: true
 
@@ -532,6 +598,50 @@ defmodule FuseWeb.EnvironmentLive.Index do
   defp filtered(environments, state), do: Enum.filter(environments, &(&1.state == state))
 
   defp count_for(environments, state), do: Enum.count(environments, &(&1.state == state))
+
+  # the rows actually shown: state filter -> free-text query -> sort
+  defp visible(environments, filter, query, sort) do
+    environments
+    |> filtered(filter)
+    |> match_query(query)
+    |> sort_envs(sort)
+  end
+
+  defp match_query(environments, query) do
+    case String.trim(query) do
+      "" ->
+        environments
+
+      q ->
+        down = String.downcase(q)
+        Enum.filter(environments, &(contains?(&1.id, down) or contains?(&1.task_id, down)))
+    end
+  end
+
+  defp contains?(nil, _q), do: false
+  defp contains?(value, q), do: String.contains?(String.downcase(value), q)
+
+  defp sort_envs(environments, "created_asc"), do: Enum.sort_by(environments, &created_key/1, :asc)
+  defp sort_envs(environments, "id_asc"), do: Enum.sort_by(environments, &(&1.id || ""))
+  defp sort_envs(environments, "state"), do: Enum.sort_by(environments, &(&1.state || ""))
+  defp sort_envs(environments, _created_desc), do: Enum.sort_by(environments, &created_key/1, :desc)
+
+  # unix seconds so nil created_at sorts to the bottom without a comparator crash
+  defp created_key(%{created_at: %DateTime{} = dt}), do: DateTime.to_unix(dt)
+  defp created_key(_), do: 0
+
+  defp sort_options do
+    [
+      {"created_desc", "Newest"},
+      {"created_asc", "Oldest"},
+      {"id_asc", "Environment ID"},
+      {"state", "State"}
+    ]
+  end
+
+  defp filters_active?(filter, query, sort) do
+    filter != "all" or String.trim(query) != "" or sort != @default_sort
+  end
 
   # --- formatting ---
 

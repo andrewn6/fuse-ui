@@ -9,7 +9,10 @@ import Config
 
 config :fuse,
   ecto_repos: [Fuse.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime],
+  # Baked at compile time so the app can detect prod at boot (Mix is unavailable
+  # in releases). Used to warn when prod runs without an inbound API token.
+  env: config_env()
 
 # Fuse orchestrator REST client. The HTTP impl is the default; tests swap in
 # Fuse.Client.Fake. base_url/token are typically set in config/runtime.exs.

@@ -160,14 +160,19 @@ defmodule FuseWeb.Layouts do
   `current` highlights the active nav item; `counts` is a map like
   `%{environments: 7, hosts: 4, snapshots: 6}` for the sidebar badges.
   """
-  attr :current, :atom, default: nil, doc: ":environments | :hosts | :snapshots | :activity | :settings"
+  attr :current, :atom,
+    default: nil,
+    doc: ":environments | :hosts | :snapshots | :activity | :settings"
+
   attr :counts, :map, default: %{}
   attr :flash, :map, default: %{}
   slot :inner_block, required: true
 
   def console(assigns) do
     assigns =
-      assign_new(assigns, :version, fn -> "v" <> to_string(Application.spec(:fuse, :vsn) || "dev") end)
+      assign_new(assigns, :version, fn ->
+        "v" <> to_string(Application.spec(:fuse, :vsn) || "dev")
+      end)
 
     ~H"""
     <div class="flex h-screen overflow-hidden bg-canvas text-ink">
@@ -257,6 +262,28 @@ defmodule FuseWeb.Layouts do
             U
           </span>
           <span class="flex-1 truncate font-mono text-[11px] text-muted">usr_10vd…7hsi</span>
+          <%!-- theme toggle: moon switches to dark (shown in light mode), sun switches
+                back (shown in dark mode); state lives in localStorage via root.html.heex --%>
+          <button
+            type="button"
+            phx-click={JS.dispatch("phx:set-theme")}
+            data-phx-theme="dark"
+            class="flex rounded-md p-1 text-muted hover:bg-surface-soft hover:text-ink dark:hidden"
+            title="Switch to dark theme"
+            aria-label="Switch to dark theme"
+          >
+            <.icon name="hero-moon-micro" class="size-4" />
+          </button>
+          <button
+            type="button"
+            phx-click={JS.dispatch("phx:set-theme")}
+            data-phx-theme="light"
+            class="hidden rounded-md p-1 text-muted hover:bg-surface-soft hover:text-ink dark:flex"
+            title="Switch to light theme"
+            aria-label="Switch to light theme"
+          >
+            <.icon name="hero-sun-micro" class="size-4" />
+          </button>
           <.link
             href={~p"/logout"}
             method="delete"
@@ -292,7 +319,10 @@ defmodule FuseWeb.Layouts do
     >
       <.icon name={@icon} class="size-[18px] text-muted/40" />
       <span class="flex-1">{@label}</span>
-      <span :if={@count} class="rounded-md bg-surface-soft px-1.5 py-0.5 text-[11px] tabular-nums text-muted">
+      <span
+        :if={@count}
+        class="rounded-md bg-surface-soft px-1.5 py-0.5 text-[11px] tabular-nums text-muted"
+      >
         {@count}
       </span>
     </div>
@@ -401,7 +431,10 @@ defmodule FuseWeb.Layouts do
   def show_modal(js \\ %JS{}, id) when is_binary(id) do
     js
     |> JS.show(to: "##{id}")
-    |> JS.show(to: "##{id}-bg", transition: {"transition-opacity ease-out duration-200", "opacity-0", "opacity-100"})
+    |> JS.show(
+      to: "##{id}-bg",
+      transition: {"transition-opacity ease-out duration-200", "opacity-0", "opacity-100"}
+    )
     |> show("##{id}-content")
     |> JS.focus_first(to: "##{id}-content")
   end
@@ -409,7 +442,10 @@ defmodule FuseWeb.Layouts do
   @doc "Closes the modal with id `id`: transitions out the panel/backdrop, hides the container, and restores focus."
   def hide_modal(js \\ %JS{}, id) when is_binary(id) do
     js
-    |> JS.hide(to: "##{id}-bg", transition: {"transition-opacity ease-in duration-200", "opacity-100", "opacity-0"})
+    |> JS.hide(
+      to: "##{id}-bg",
+      transition: {"transition-opacity ease-in duration-200", "opacity-100", "opacity-0"}
+    )
     |> hide("##{id}-content")
     |> JS.hide(to: "##{id}", transition: {"block", "block", "hidden"})
     |> JS.pop_focus()

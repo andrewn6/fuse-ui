@@ -5,8 +5,12 @@ defmodule Fuse.Application do
 
   use Application
 
+  require Logger
+
   @impl true
   def start(_type, _args) do
+    warn_if_insecure_prod()
+
     children = [
       FuseWeb.Telemetry,
       Fuse.Repo,
@@ -25,6 +29,25 @@ defmodule Fuse.Application do
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Fuse.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  @doc """
+  Warn (loudly, but non-fatally) when running in production with no inbound API
+  token configured — the `/api/v1` surface is then unauthenticated. Booting is
+  still allowed (operator's choice); this just makes the risk visible in logs.
+  """
+  @spec warn_if_insecure_prod() :: :ok
+  def warn_if_insecure_prod do
+    token = Application.get_env(:fuse, FuseWeb.Plugs.ApiAuth, [])[:token]
+
+    if Application.get_env(:fuse, :env) == :prod and token in [nil, ""] do
+      Logger.warning(
+        "CONTROL_PLANE_TOKEN is unset; /api/v1 is UNAUTHENTICATED. " <>
+          "Set CONTROL_PLANE_TOKEN to require inbound auth."
+      )
+    end
+
+    :ok
   end
 
   # Tell Phoenix to update the endpoint configuration
