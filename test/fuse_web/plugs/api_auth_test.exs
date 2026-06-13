@@ -84,6 +84,28 @@ defmodule FuseWeb.Plugs.ApiAuthTest do
       assert json_response(conn, 401)
     end
 
+    test "guards DELETE without auth (401)", %{conn: conn} do
+      conn = delete(conn, "/api/v1/hosts/host-1")
+      assert json_response(conn, 401)
+    end
+
+    test "guards POST ?action= without auth (401)", %{conn: conn} do
+      conn = post(conn, "/api/v1/environments/env-1?action=drain", %{})
+      assert json_response(conn, 401)
+    end
+
+    test "rejects multiple Authorization headers (401)", %{conn: conn} do
+      conn = %{
+        conn
+        | req_headers:
+            [{"authorization", "Bearer #{@token}"}, {"authorization", "Bearer other"}] ++
+              conn.req_headers
+      }
+
+      conn = get(conn, "/api/v1/hosts")
+      assert json_response(conn, 401)
+    end
+
     test "does not echo the configured token in the 401 body", %{conn: conn} do
       conn =
         conn
@@ -96,13 +118,29 @@ defmodule FuseWeb.Plugs.ApiAuthTest do
 
   describe "when no token is configured (insecure/dev mode)" do
     setup do
-      configure_token(nil)
       seed_fake()
     end
 
-    test "passes through without credentials (mirrors fuse empty-token no-op)", %{conn: conn} do
+    test "nil token passes through without credentials (mirrors fuse no-op)", %{conn: conn} do
+      configure_token(nil)
       conn = get(conn, "/api/v1/hosts")
       assert %{"data" => []} = json_response(conn, 200)
+    end
+
+    test "empty-string token also passes through (mirrors fuse empty-token)", %{conn: conn} do
+      configure_token("")
+      conn = get(conn, "/api/v1/hosts")
+      assert %{"data" => []} = json_response(conn, 200)
+    end
+  end
+
+  describe "misconfiguration" do
+    test "a non-binary configured token raises (fail loud, not silently open)", %{conn: conn} do
+      configure_token(123)
+
+      assert_raise ArgumentError, ~r/must be a binary string or nil/, fn ->
+        FuseWeb.Plugs.ApiAuth.call(conn, [])
+      end
     end
   end
 end
