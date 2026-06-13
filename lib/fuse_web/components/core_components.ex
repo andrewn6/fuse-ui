@@ -419,6 +419,83 @@ defmodule FuseWeb.CoreComponents do
     """
   end
 
+  @doc """
+  A button that copies `value` to the clipboard, briefly swapping its icon to a
+  check to confirm. Requires a unique `id` (it carries a JS hook). The optional
+  inner block renders a label before the icon.
+
+  ## Examples
+
+      <.copy_button id="copy-env-id" value={@env.id} />
+      <.copy_button id="copy-url" value={@env.url}>Copy URL</.copy_button>
+  """
+  attr :id, :string, required: true
+  attr :value, :string, required: true
+  attr :class, :string, default: nil
+  attr :title, :string, default: "Copy"
+  slot :inner_block
+
+  def copy_button(assigns) do
+    ~H"""
+    <button
+      id={@id}
+      type="button"
+      phx-hook=".Copy"
+      data-copy={@value}
+      title={@title}
+      aria-label={@title}
+      class={[
+        "group inline-flex items-center gap-1.5 rounded-md p-1 text-muted transition hover:bg-surface-soft hover:text-ink",
+        @class
+      ]}
+    >
+      <span :if={@inner_block != []} class="text-[12px] font-medium">
+        {render_slot(@inner_block)}
+      </span>
+      <span class="hero-clipboard-document size-3.5" data-copy-default></span>
+      <span class="hero-check size-3.5 hidden text-ok" data-copy-done></span>
+    </button>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".Copy">
+      export default {
+        mounted() {
+          this.el.addEventListener("click", () => this.copy())
+        },
+        copy() {
+          const text = this.el.dataset.copy || ""
+          const done = () => this.flash()
+          if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(done).catch(() => this.fallback(text, done))
+          } else {
+            this.fallback(text, done)
+          }
+        },
+        fallback(text, done) {
+          const ta = document.createElement("textarea")
+          ta.value = text
+          ta.style.position = "fixed"
+          ta.style.opacity = "0"
+          document.body.appendChild(ta)
+          ta.select()
+          try { document.execCommand("copy") } catch (_e) {}
+          document.body.removeChild(ta)
+          done()
+        },
+        flash() {
+          const def = this.el.querySelector("[data-copy-default]")
+          const ok = this.el.querySelector("[data-copy-done]")
+          if (def) def.classList.add("hidden")
+          if (ok) ok.classList.remove("hidden")
+          clearTimeout(this._t)
+          this._t = setTimeout(() => {
+            if (def) def.classList.remove("hidden")
+            if (ok) ok.classList.add("hidden")
+          }, 1200)
+        }
+      }
+    </script>
+    """
+  end
+
   ## JS Commands
 
   def show(js \\ %JS{}, selector) do

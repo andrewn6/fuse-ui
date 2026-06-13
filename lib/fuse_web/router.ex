@@ -25,6 +25,21 @@ defmodule FuseWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+
+    # Browser session login (token -> Phoenix session). Outside the gated block.
+    get "/login", SessionController, :new
+    post "/login", SessionController, :create
+    delete "/logout", SessionController, :delete
+
+    # The console, gated by the session auth hook (open in insecure/no-token mode).
+    live_session :console, on_mount: FuseWeb.AuthHook do
+      live "/environments", EnvironmentLive.Index, :index
+      live "/environments/:id", EnvironmentLive.Show, :show
+      live "/hosts", HostLive.Index, :index
+      live "/snapshots", SnapshotLive.Index, :index
+      live "/activity", ActivityLive.Index, :index
+      live "/settings", SettingsLive.Index, :index
+    end
   end
 
   scope "/api/v1", FuseWeb.API do

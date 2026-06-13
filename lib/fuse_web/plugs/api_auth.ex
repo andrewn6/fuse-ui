@@ -10,9 +10,11 @@ defmodule FuseWeb.Plugs.ApiAuth do
     * The presented token is compared against the configured token in
       **constant time** (`Plug.Crypto.secure_compare/2`) to avoid leaking it via
       timing.
-    * When **no token is configured** the plug is a no-op pass-through
-      (insecure/dev mode), matching fuse's "empty token disables auth" behaviour.
-      This is also what lets the controller tests run without credentials.
+    * When **no token is configured** (`nil` or `""`) the plug is a no-op
+      pass-through (insecure/dev mode), matching fuse's "empty token disables
+      auth" behaviour. This is also what lets the controller tests run without
+      credentials. A configured-but-non-binary token (a misconfiguration) raises
+      rather than silently disabling auth — fail loud and closed.
 
   > #### Production {: .warning}
   >
@@ -45,9 +47,21 @@ defmodule FuseWeb.Plugs.ApiAuth do
   @impl true
   def call(conn, _opts) do
     case configured_token() do
-      token when is_binary(token) and token != "" -> authenticate(conn, token)
-      _ -> conn
+      # Not configured / explicitly empty -> insecure pass-through (mirrors fuse).
+      nil -> conn
+      "" -> conn
+      token when is_binary(token) -> authenticate(conn, token)
+      # A configured-but-non-binary token is a misconfiguration. Fail LOUD and
+      # CLOSED rather than silently disabling auth (a non-binary used to fall
+      # through to pass-through, leaving a deployment unprotected without notice).
+      other -> raise_misconfigured(other)
     end
+  end
+
+  defp raise_misconfigured(value) do
+    raise ArgumentError,
+          "config :fuse, FuseWeb.Plugs.ApiAuth, token: must be a binary string or nil, got: " <>
+            inspect(value) <> " — refusing to serve with an ambiguous auth configuration"
   end
 
   defp authenticate(conn, expected) do
