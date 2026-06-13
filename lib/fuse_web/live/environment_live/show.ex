@@ -298,8 +298,7 @@ defmodule FuseWeb.EnvironmentLive.Show do
       <Layouts.modal id="confirm-rotate">
         <:title>Rotate token</:title>
         <p class="text-[13px] text-muted">
-          Issue a fresh guest token for
-          <span class="font-mono text-ink">{@env.id}</span>. The previous token stops working immediately.
+          Issue a fresh guest token for <span class="font-mono text-ink">{@env.id}</span>. The previous token stops working immediately.
         </p>
         <:actions>
           <button

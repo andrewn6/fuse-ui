@@ -20,6 +20,9 @@ defmodule FuseWeb.EnvironmentLive.Index do
   # States from which an environment may still be drained.
   @drainable ~w(provisioning running)
 
+  # Default sort for the bottom command bar (newest first).
+  @default_sort "created_desc"
+
   @impl true
   def mount(_params, _session, socket) do
     {environments, load_error} = load_environments()
@@ -28,6 +31,8 @@ defmodule FuseWeb.EnvironmentLive.Index do
      socket
      |> assign(:page_title, "Environments")
      |> assign(:filter, "all")
+     |> assign(:query, "")
+     |> assign(:sort, @default_sort)
      |> assign(:states, @states)
      |> assign(:plans, Plan.names())
      |> assign(:load_error, load_error)
@@ -40,6 +45,22 @@ defmodule FuseWeb.EnvironmentLive.Index do
   @impl true
   def handle_event("filter", %{"state" => state}, socket) do
     {:noreply, assign(socket, :filter, state)}
+  end
+
+  # the bottom command bar's free-text query + sort select (one phx-change form)
+  def handle_event("refine", params, socket) do
+    {:noreply,
+     socket
+     |> assign(:query, Map.get(params, "query", socket.assigns.query))
+     |> assign(:sort, Map.get(params, "sort", socket.assigns.sort))}
+  end
+
+  def handle_event("clear_filters", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:filter, "all")
+     |> assign(:query, "")
+     |> assign(:sort, @default_sort)}
   end
 
   def handle_event("open_create", _params, socket) do
@@ -81,8 +102,9 @@ defmodule FuseWeb.EnvironmentLive.Index do
   def render(assigns) do
     ~H"""
     <Layouts.console current={:environments} counts={@counts} flash={@flash}>
-      <div class="mx-auto w-full max-w-5xl px-8 py-7">
-        <div class="flex items-start justify-between gap-4">
+      <div class="flex min-h-full flex-col">
+        <div class="mx-auto w-full max-w-5xl flex-1 px-8 py-7">
+          <div class="flex items-start justify-between gap-4">
           <div>
             <h1 class="text-[22px] font-semibold tracking-tight">Environments</h1>
             <p class="mt-1 text-[13px] text-muted">
@@ -110,7 +132,9 @@ defmodule FuseWeb.EnvironmentLive.Index do
         </div>
 
         <div class="mt-5 flex flex-wrap items-center gap-2">
-          <span class="mr-1 text-[11px] font-semibold uppercase tracking-wider text-muted">State</span>
+          <span class="mr-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
+            State
+          </span>
           <.pill label="All" value="all" active={@filter == "all"} count={length(@environments)} />
           <.pill
             :for={state <- @states}
@@ -134,12 +158,17 @@ defmodule FuseWeb.EnvironmentLive.Index do
             </thead>
             <tbody>
               <tr
-                :for={env <- filtered(@environments, @filter)}
+                :for={env <- visible(@environments, @filter, @query, @sort)}
                 id={"env-#{env.id}"}
                 class="border-b border-rail transition last:border-0 hover:bg-surface-soft/60"
               >
                 <td class="px-5 py-3.5">
-                  <div class="font-mono text-[13px] font-medium text-ink">{env.id}</div>
+                  <.link
+                    navigate={~p"/environments/#{env.id}"}
+                    class="font-mono text-[13px] font-medium text-ink hover:text-brand-strong hover:underline"
+                  >
+                    {env.id}
+                  </.link>
                   <div class="mt-0.5 font-mono text-[11px] text-muted">{spec_label(env.spec)}</div>
                 </td>
                 <td class="px-5 py-3.5"><.state_badge state={env.state} /></td>
@@ -149,7 +178,7 @@ defmodule FuseWeb.EnvironmentLive.Index do
                   <.row_actions env={env} />
                 </td>
               </tr>
-              <tr :if={filtered(@environments, @filter) == []}>
+              <tr :if={visible(@environments, @filter, @query, @sort) == []}>
                 <td colspan="5" class="px-5 py-16 text-center text-[13px] text-muted">
                   {empty_message(@filter, @load_error)}
                 </td>
@@ -157,6 +186,16 @@ defmodule FuseWeb.EnvironmentLive.Index do
             </tbody>
           </table>
         </div>
+        </div>
+
+        <.command_bar
+          visible={length(visible(@environments, @filter, @query, @sort))}
+          total={length(@environments)}
+          query={@query}
+          sort={@sort}
+          sorts={sort_options()}
+          active={filters_active?(@filter, @query, @sort)}
+        />
       </div>
 
       <.create_modal :if={@show_create} form={@form} plans={@plans} />
@@ -164,8 +203,7 @@ defmodule FuseWeb.EnvironmentLive.Index do
       <Layouts.modal :for={env <- @environments} id={"confirm-drain-#{env.id}"}>
         <:title>Drain environment</:title>
         <p class="text-[13px] text-muted">
-          Gracefully stop
-          <span class="font-mono text-ink">{env.id}</span>. In-flight work is allowed to finish; no new work is scheduled.
+          Gracefully stop <span class="font-mono text-ink">{env.id}</span>. In-flight work is allowed to finish; no new work is scheduled.
         </p>
         <:actions>
           <button
@@ -177,7 +215,9 @@ defmodule FuseWeb.EnvironmentLive.Index do
           </button>
           <button
             type="button"
-            phx-click={hide_modal("confirm-drain-#{env.id}") |> JS.push("drain", value: %{id: env.id})}
+            phx-click={
+              hide_modal("confirm-drain-#{env.id}") |> JS.push("drain", value: %{id: env.id})
+            }
             class="rounded-lg bg-warn px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90"
           >
             Drain
@@ -188,8 +228,7 @@ defmodule FuseWeb.EnvironmentLive.Index do
       <Layouts.modal :for={env <- @environments} id={"confirm-rotate-#{env.id}"}>
         <:title>Rotate token</:title>
         <p class="text-[13px] text-muted">
-          Issue a fresh guest token for
-          <span class="font-mono text-ink">{env.id}</span>. The previous token stops working immediately.
+          Issue a fresh guest token for <span class="font-mono text-ink">{env.id}</span>. The previous token stops working immediately.
         </p>
         <:actions>
           <button
@@ -201,7 +240,9 @@ defmodule FuseWeb.EnvironmentLive.Index do
           </button>
           <button
             type="button"
-            phx-click={hide_modal("confirm-rotate-#{env.id}") |> JS.push("rotate_token", value: %{id: env.id})}
+            phx-click={
+              hide_modal("confirm-rotate-#{env.id}") |> JS.push("rotate_token", value: %{id: env.id})
+            }
             class="rounded-lg bg-brand px-3 py-1.5 text-[13px] font-medium text-white hover:bg-brand-strong"
           >
             Rotate token
@@ -212,8 +253,7 @@ defmodule FuseWeb.EnvironmentLive.Index do
       <Layouts.modal :for={env <- @environments} id={"confirm-destroy-#{env.id}"}>
         <:title>Destroy environment</:title>
         <p class="text-[13px] text-muted">
-          Permanently destroy
-          <span class="font-mono text-ink">{env.id}</span>. This can't be undone.
+          Permanently destroy <span class="font-mono text-ink">{env.id}</span>. This can't be undone.
         </p>
         <:actions>
           <button
@@ -225,7 +265,9 @@ defmodule FuseWeb.EnvironmentLive.Index do
           </button>
           <button
             type="button"
-            phx-click={hide_modal("confirm-destroy-#{env.id}") |> JS.push("destroy", value: %{id: env.id})}
+            phx-click={
+              hide_modal("confirm-destroy-#{env.id}") |> JS.push("destroy", value: %{id: env.id})
+            }
             class="rounded-lg bg-bad px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90"
           >
             Destroy
@@ -268,7 +310,11 @@ defmodule FuseWeb.EnvironmentLive.Index do
     assigns = assign(assigns, dot: dot, text: text, bg: bg)
 
     ~H"""
-    <span class={["inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium", @bg, @text]}>
+    <span class={[
+      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium",
+      @bg,
+      @text
+    ]}>
       <span class={["size-1.5 rounded-full", @dot]} />
       {label_for(@state)}
     </span>
@@ -460,7 +506,9 @@ defmodule FuseWeb.EnvironmentLive.Index do
   end
 
   defp create_form do
-    to_form(%{"task_id" => "", "plan" => List.first(Plan.names()), "region" => ""}, as: :environment)
+    to_form(%{"task_id" => "", "plan" => List.first(Plan.names()), "region" => ""},
+      as: :environment
+    )
   end
 
   defp drainable?(state), do: state in @drainable
@@ -511,7 +559,10 @@ defmodule FuseWeb.EnvironmentLive.Index do
   defp cpu_part(cpus), do: "#{cpus} vCPU"
 
   defp ram_part(nil), do: nil
-  defp ram_part(ram_mb) when ram_mb >= 1024, do: "#{Float.round(ram_mb / 1024, 1) |> trim_float()} GB"
+
+  defp ram_part(ram_mb) when ram_mb >= 1024,
+    do: "#{Float.round(ram_mb / 1024, 1) |> trim_float()} GB"
+
   defp ram_part(ram_mb), do: "#{ram_mb} MB"
 
   defp region_part(nil), do: nil
