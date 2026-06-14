@@ -30,15 +30,26 @@ defmodule Fuse.EventStream do
   @doc """
   Start watching `vm_id`'s event stream. Idempotent: a second call for an
   already-watched env returns the existing consumer.
+
+  Pass `subscriber: self()` to have the consumer monitor the caller and self-stop
+  once its last subscriber exits (so a viewer leaving never tears down the stream
+  for other viewers, and an abandoned stream doesn't linger). When an already
+  running consumer is returned, the new subscriber is registered with it.
   """
   @spec watch(String.t(), keyword()) :: {:ok, pid()} | {:error, term()}
   def watch(vm_id, opts \\ []) do
     child = {Consumer, Keyword.merge([vm_id: vm_id, name: via(vm_id)], opts)}
 
     case DynamicSupervisor.start_child(StreamSupervisor, child) do
-      {:ok, pid} -> {:ok, pid}
-      {:error, {:already_started, pid}} -> {:ok, pid}
-      other -> other
+      {:ok, pid} ->
+        {:ok, pid}
+
+      {:error, {:already_started, pid}} ->
+        if subscriber = opts[:subscriber], do: Consumer.add_subscriber(pid, subscriber)
+        {:ok, pid}
+
+      other ->
+        other
     end
   end
 

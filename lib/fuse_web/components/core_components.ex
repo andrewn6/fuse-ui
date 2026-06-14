@@ -485,10 +485,14 @@ defmodule FuseWeb.CoreComponents do
           const ok = this.el.querySelector("[data-copy-done]")
           if (def) def.classList.add("hidden")
           if (ok) ok.classList.remove("hidden")
+          // announce success to assistive tech, then restore the label
+          if (this._label == null) this._label = this.el.getAttribute("aria-label")
+          this.el.setAttribute("aria-label", "Copied")
           clearTimeout(this._t)
           this._t = setTimeout(() => {
             if (def) def.classList.remove("hidden")
             if (ok) ok.classList.add("hidden")
+            if (this._label != null) this.el.setAttribute("aria-label", this._label)
           }, 1200)
         }
       }

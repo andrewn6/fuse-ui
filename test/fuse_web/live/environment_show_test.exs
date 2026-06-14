@@ -55,6 +55,9 @@ defmodule FuseWeb.EnvironmentShowTest do
         {"GET", "/v1/environments/env_missing"} ->
           {404, %{"error" => %{"code" => "not_found", "message" => "no such environment"}}}
 
+        {"GET", "/v1/environments/env_err"} ->
+          {503, %{"error" => %{"code" => "unavailable", "message" => "fuse is down"}}}
+
         {"GET", "/v1/environments/" <> _id} ->
           {200, @env}
 
@@ -134,6 +137,20 @@ defmodule FuseWeb.EnvironmentShowTest do
 
     assert html =~ "Event stream disconnected"
     assert html =~ "fuse is down"
+    # env is still "running", so only the streaming flag can drop the live badge
+    refute html =~ "Receiving live events"
+  end
+
+  test "a state-only event does not blank the connection url", %{conn: conn} do
+    {:ok, view, html} = live(conn, ~p"/environments/env_aaa111")
+    assert html =~ "https://env.example.com"
+
+    # event carries no url (sparse); the existing url must survive the merge
+    push_event("env_aaa111", event(%{state: "draining", id: "evt1"}))
+    html = render(view)
+
+    assert html =~ "Draining"
+    assert html =~ "https://env.example.com"
   end
 
   test "an unknown environment renders the not-found state", %{conn: conn} do
@@ -143,6 +160,15 @@ defmodule FuseWeb.EnvironmentShowTest do
     assert html =~ "Back to Environments"
   end
 
+  test "a non-404 load error renders the generic error state", %{conn: conn} do
+    {:ok, _view, html} = live(conn, ~p"/environments/env_err")
+
+    # apostrophe is HTML-escaped to &#39;, so assert on the apostrophe-free part
+    assert html =~ "load environment"
+    assert html =~ "fuse is down"
+    refute html =~ "Environment not found"
+  end
+
   test "drain confirms and calls fuse with action=drain", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/environments/env_aaa111")
 
@@ -150,6 +176,15 @@ defmodule FuseWeb.EnvironmentShowTest do
 
     assert_received {:action, "drain", "env_aaa111"}
     assert html =~ "Environment draining."
+  end
+
+  test "rotate token calls fuse with action=rotate-token and flashes", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/environments/env_aaa111")
+
+    html = render_click(view, "rotate_token", %{"id" => "env_aaa111"})
+
+    assert_received {:action, "rotate-token", "env_aaa111"}
+    assert html =~ "Token rotated."
   end
 
   test "destroy navigates back to the list", %{conn: conn} do

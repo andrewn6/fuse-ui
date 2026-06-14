@@ -3,11 +3,11 @@ defmodule FuseWeb.EnvironmentLive.Show do
   Environment detail: spec, connection URL, lifecycle actions, and a live event
   log fed by the fuse SSE stream (via `Fuse.EventStream` -> `Phoenix.PubSub`).
 
-  On a connected mount we `watch/1` the environment (starts a supervised SSE
-  consumer if one isn't running) and `subscribe/1` to its topic; incoming
-  `%Event{}`s update the live state badge / URL and prepend to the log. The watch
-  is torn down on terminate (simple; a ref-counted registry is a later refinement
-  if multiple viewers per env becomes a real concern).
+  On a connected mount we `subscribe/1` to the env's topic and `watch/1` it with
+  `subscriber: self()`. The consumer monitors this LiveView and self-stops only
+  when its last viewer leaves, so closing one tab never tears down the stream for
+  other viewers, and an abandoned stream doesn't linger. Incoming `%Event{}`s
+  update the live state badge / URL and prepend to the log.
   """
   use FuseWeb, :live_view
 
@@ -30,7 +30,7 @@ defmodule FuseWeb.EnvironmentLive.Show do
       {:ok, env} ->
         if connected?(socket) do
           EventStream.subscribe(id)
-          EventStream.watch(id)
+          EventStream.watch(id, subscriber: self())
         end
 
         {:ok,
@@ -62,13 +62,6 @@ defmodule FuseWeb.EnvironmentLive.Show do
     |> assign(:stream_down, nil)
     |> assign(:streaming, false)
     |> assign(:events, [])
-  end
-
-  @impl true
-  def terminate(_reason, socket) do
-    # idempotent: a no-op if we never watched (static mount / load error)
-    if id = socket.assigns[:id], do: EventStream.unwatch(id)
-    :ok
   end
 
   @impl true
@@ -149,10 +142,13 @@ defmodule FuseWeb.EnvironmentLive.Show do
               <Layouts.badge label={label_for(@env.state)} color={state_color(@env.state)} />
               <span
                 :if={@streaming and State.active?(@env.state)}
+                role="status"
+                aria-live="polite"
                 class="inline-flex items-center gap-1.5 rounded-full bg-ok-soft px-2 py-0.5 text-[11px] font-medium text-ok"
-                title="Receiving live events"
               >
-                <span class="size-1.5 animate-pulse rounded-full bg-ok" /> Live
+                <span class="size-1.5 rounded-full bg-ok motion-safe:animate-pulse" />
+                <span>Live</span>
+                <span class="sr-only">Receiving live events</span>
               </span>
             </div>
             <p class="mt-1 text-[13px] text-muted">
@@ -242,6 +238,8 @@ defmodule FuseWeb.EnvironmentLive.Show do
 
           <div
             :if={@stream_down}
+            role="status"
+            aria-live="polite"
             class="flex items-start gap-2.5 border-b border-rail bg-warn-soft px-5 py-3 text-[12px]"
           >
             <.icon name="hero-signal-slash" class="mt-0.5 size-4 shrink-0 text-warn" />

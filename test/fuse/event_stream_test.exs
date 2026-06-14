@@ -45,4 +45,26 @@ defmodule Fuse.EventStreamTest do
 
     assert_receive {:environment_event, %Event{id: "e1", state: "running"}}
   end
+
+  test "the consumer is torn down when its last subscriber process dies", %{vm_id: vm_id} do
+    parent = self()
+
+    # a stand-in viewer that watches with itself as the monitored subscriber
+    sub =
+      spawn(fn ->
+        {:ok, _} = EventStream.watch(vm_id, subscriber: self())
+        send(parent, :watched)
+        Process.sleep(:infinity)
+      end)
+
+    assert_receive :watched
+    assert EventStream.watching?(vm_id)
+    pid = EventStream.whereis(vm_id)
+    ref = Process.monitor(pid)
+
+    Process.exit(sub, :kill)
+
+    assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
+    refute EventStream.watching?(vm_id)
+  end
 end

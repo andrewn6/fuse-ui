@@ -203,7 +203,11 @@ defmodule FuseWeb.Layouts do
         </div>
 
         <div class="px-3 pt-3">
-          <button class="flex w-full items-center gap-2 rounded-lg border border-rail bg-surface-soft px-2.5 py-2 text-[13px] text-muted hover:bg-canvas">
+          <button
+            type="button"
+            phx-click={JS.dispatch("cmdk:open")}
+            class="flex w-full items-center gap-2 rounded-lg border border-rail bg-surface-soft px-2.5 py-2 text-[13px] text-muted hover:bg-canvas"
+          >
             <.icon name="hero-magnifying-glass" class="size-4" />
             <span class="flex-1 text-left">Search &amp; run…</span>
             <kbd class="rounded border border-rail bg-surface px-1 text-[10px] font-medium">⌘K</kbd>
@@ -300,7 +304,266 @@ defmodule FuseWeb.Layouts do
       </main>
     </div>
 
+    <.command_palette />
+
     <.flash_group flash={@flash} />
+    """
+  end
+
+  @doc """
+  The ⌘K command palette: a static, client-owned overlay (open/close, keyboard
+  nav, and result rendering all live in the `.CmdK` colocated hook). The server
+  side is `FuseWeb.CommandPalette` (an `on_mount` hook on the console
+  live_session) which answers `palette_search` / `palette_exec`.
+
+  `phx-update="ignore"` hands the inner DOM to the hook so LiveView re-renders of
+  the shell never clobber the open state or the rendered results.
+  """
+  def command_palette(assigns) do
+    ~H"""
+    <div id="command-palette" phx-hook=".CmdK" phx-update="ignore">
+      <div data-cmdk-root class="hidden">
+        <div
+          data-cmdk-overlay
+          class="fixed inset-0 z-[60] bg-ink/40 backdrop-blur-[1px]"
+          aria-hidden="true"
+        />
+        <div
+          data-cmdk-panel
+          role="dialog"
+          aria-modal="true"
+          aria-label="Command palette"
+          class="fixed left-1/2 top-[12vh] z-[70] w-full max-w-xl -translate-x-1/2 overflow-hidden rounded-2xl border border-rail bg-surface shadow-2xl"
+        >
+          <div class="flex items-center gap-2.5 border-b border-rail px-4">
+            <.icon name="hero-magnifying-glass" class="size-4 shrink-0 text-muted" />
+            <input
+              data-cmdk-input
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="Search environments or jump to a screen…"
+              class="w-full bg-transparent py-3.5 text-[14px] text-ink placeholder:text-muted focus:outline-none"
+            />
+            <kbd class="shrink-0 rounded border border-rail bg-surface-soft px-1.5 py-0.5 text-[10px] font-medium text-muted">
+              Esc
+            </kbd>
+          </div>
+          <ul data-cmdk-list class="max-h-[52vh] overflow-y-auto p-1.5"></ul>
+          <div
+            data-cmdk-empty
+            class="hidden px-4 py-10 text-center text-[13px] text-muted"
+          >
+            No matches.
+          </div>
+        </div>
+      </div>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".CmdK">
+        const NAV = [
+          {label: "Environments", to: "/environments"},
+          {label: "Hosts", to: "/hosts"},
+          {label: "Snapshots", to: "/snapshots"},
+          {label: "Activity", to: "/activity"},
+          {label: "Settings", to: "/settings"},
+        ]
+
+        const esc = (s) =>
+          s == null ? "" : String(s).replace(/[&<>"]/g, (c) =>
+            ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"})[c])
+
+        export default {
+          mounted() {
+            this.open = false
+            this.cursor = 0
+            this.items = []
+            this.results = []
+            // toggle visibility on a child inside the phx-update="ignore" subtree
+            // so a server re-render of the shell can never re-hide an open palette
+            this.root = this.el.querySelector("[data-cmdk-root]")
+            this.overlay = this.el.querySelector("[data-cmdk-overlay]")
+            this.input = this.el.querySelector("[data-cmdk-input]")
+            this.list = this.el.querySelector("[data-cmdk-list]")
+            this.empty = this.el.querySelector("[data-cmdk-empty]")
+
+            this.onKey = (e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+                e.preventDefault()
+                this.toggle()
+              } else if (e.key === "Escape" && this.open) {
+                this.close()
+              }
+            }
+            this.onOpen = () => this.openPalette()
+            window.addEventListener("keydown", this.onKey)
+            window.addEventListener("cmdk:open", this.onOpen)
+
+            this.overlay.addEventListener("click", () => this.close())
+            this.input.addEventListener("input", () => this.onInput())
+            this.input.addEventListener("keydown", (e) => this.onInputKey(e))
+
+            this.handleEvent("palette_results", ({results}) => {
+              this.results = results || []
+              this.render()
+            })
+          },
+
+          destroyed() {
+            window.removeEventListener("keydown", this.onKey)
+            window.removeEventListener("cmdk:open", this.onOpen)
+          },
+
+          toggle() {
+            this.open ? this.close() : this.openPalette()
+          },
+
+          openPalette() {
+            this.open = true
+            // remember who had focus so we can restore it on close (a11y)
+            this.opener = document.activeElement
+            this.root.classList.remove("hidden")
+            this.input.value = ""
+            this.results = []
+            this.cursor = 0
+            this.render()
+            this.input.focus()
+          },
+
+          close() {
+            this.open = false
+            this.root.classList.add("hidden")
+            const opener = this.opener
+            this.opener = null
+            if (opener && opener.focus) opener.focus()
+          },
+
+          onInput() {
+            const q = this.input.value.trim()
+            this.cursor = 0
+            if (q.length > 0) {
+              this.pushEvent("palette_search", {query: q})
+            } else {
+              this.results = []
+            }
+            this.render()
+          },
+
+          navItems() {
+            const q = this.input.value.trim().toLowerCase()
+            const nav = q ? NAV.filter((n) => n.label.toLowerCase().includes(q)) : NAV
+            return nav.map((n) => ({kind: "nav", label: n.label, to: n.to, hint: "Go"}))
+          },
+
+          envItems() {
+            return this.results.map((r) => ({
+              kind: "env",
+              label: r.id,
+              sub: r.task_id,
+              state: r.state,
+              to: "/environments/" + r.id,
+              hint: "Open",
+            }))
+          },
+
+          buildItems() {
+            const items = [...this.navItems(), ...this.envItems()]
+            const q = this.input.value.trim().toLowerCase()
+            items.push({kind: "theme", label: "Toggle theme", hint: "Theme"})
+            // keep the theme command only when it matches a non-empty query
+            return q && !"toggle theme".includes(q)
+              ? items.slice(0, -1)
+              : items
+          },
+
+          render() {
+            this.items = this.buildItems()
+            if (this.cursor >= this.items.length) {
+              this.cursor = Math.max(0, this.items.length - 1)
+            }
+            this.list.innerHTML = this.items.map((it, i) => this.itemHtml(it, i)).join("")
+            this.empty.classList.toggle("hidden", this.items.length > 0)
+            this.list.querySelectorAll("[data-cmdk-item]").forEach((el) => {
+              const i = parseInt(el.dataset.index)
+              el.addEventListener("click", () => {
+                this.cursor = i
+                this.activate()
+              })
+              el.addEventListener("mousemove", () => {
+                if (this.cursor !== i) {
+                  this.cursor = i
+                  this.highlight()
+                }
+              })
+            })
+            this.highlight()
+          },
+
+          itemHtml(it, i) {
+            const sub = it.sub
+              ? `<span class="ml-2 truncate font-mono text-[11px] text-muted">${esc(it.sub)}</span>`
+              : ""
+            // labels carry no explicit color so the active row's text-brand-strong
+            // (inherited) can recolor them; inactive rows inherit the default ink
+            const left =
+              it.kind === "env"
+                ? `<span class="font-mono text-[13px]">${esc(it.label)}</span>${sub}`
+                : `<span class="text-[13px]">${esc(it.label)}</span>`
+            return `<li data-cmdk-item data-index="${i}" class="flex cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2">
+              <span class="flex min-w-0 items-center">${left}</span>
+              <span class="shrink-0 text-[10px] uppercase tracking-wider text-muted">${esc(it.hint)}</span>
+            </li>`
+          },
+
+          highlight() {
+            this.list.querySelectorAll("[data-cmdk-item]").forEach((el, i) => {
+              const on = i === this.cursor
+              el.classList.toggle("bg-brand-soft", on)
+              el.classList.toggle("text-brand-strong", on)
+              // a brand ring is the primary, theme-independent selection cue
+              // (bg-brand-soft alone is near-invisible against surface in dark)
+              el.classList.toggle("ring-1", on)
+              el.classList.toggle("ring-inset", on)
+              el.classList.toggle("ring-brand", on)
+            })
+          },
+
+          onInputKey(e) {
+            if (e.key === "ArrowDown") {
+              e.preventDefault()
+              this.move(1)
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault()
+              this.move(-1)
+            } else if (e.key === "Enter") {
+              e.preventDefault()
+              this.activate()
+            }
+          },
+
+          move(d) {
+            if (this.items.length === 0) return
+            this.cursor = (this.cursor + d + this.items.length) % this.items.length
+            this.highlight()
+            const el = this.list.querySelector(`[data-index="${this.cursor}"]`)
+            if (el) el.scrollIntoView({block: "nearest"})
+          },
+
+          activate() {
+            const it = this.items[this.cursor]
+            if (!it) return
+            if (it.kind === "theme") {
+              const cur = document.documentElement.getAttribute("data-theme")
+              const next = cur === "dark" ? "light" : "dark"
+              localStorage.setItem("phx:theme", next)
+              document.documentElement.setAttribute("data-theme", next)
+              this.close()
+            } else if (it.to) {
+              this.close()
+              this.pushEvent("palette_exec", {action: "navigate", to: it.to})
+            }
+          },
+        }
+      </script>
+    </div>
     """
   end
 

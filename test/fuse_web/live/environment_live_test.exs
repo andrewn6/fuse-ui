@@ -110,10 +110,141 @@ defmodule FuseWeb.EnvironmentLiveTest do
     Application.put_env(:fuse, Fuse.Client.HTTP,
       base_url: "http://fuse.test",
       token: "t",
-      req_options: [retry: false, plug: fn conn -> Req.Test.transport_error(conn, :econnrefused) end]
+      req_options: [
+        retry: false,
+        plug: fn conn -> Req.Test.transport_error(conn, :econnrefused) end
+      ]
     )
 
     {:ok, _view, html} = live(conn, ~p"/environments")
     assert html =~ "reach fuse"
+  end
+
+  test "the bottom command bar shows visible-of-total and filters by query", %{conn: conn} do
+    {:ok, view, html} = live(conn, ~p"/environments")
+    assert html =~ "of 2"
+    # no clear control until a filter is active
+    refute has_element?(view, "button[phx-click='clear_filters']")
+
+    html =
+      view
+      |> form("form[phx-change='refine']", %{"query" => "beta"})
+      |> render_change()
+
+    # total is unchanged; the query narrowed the rows to the matching task
+    assert html =~ "of 2"
+    assert has_element?(view, "button[phx-click='clear_filters']")
+    refute has_element?(view, "#env-env_aaa111")
+    assert has_element?(view, "#env-env_bbb222")
+
+    # clearing restores every row
+    view |> element("button[phx-click='clear_filters']") |> render_click()
+    assert has_element?(view, "#env-env_aaa111")
+    assert has_element?(view, "#env-env_bbb222")
+  end
+
+  test "changing the sort keeps the rows and does not crash", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/environments")
+
+    view
+    |> form("form[phx-change='refine']", %{"sort" => "id_asc"})
+    |> render_change()
+
+    assert has_element?(view, "#env-env_aaa111")
+    assert has_element?(view, "#env-env_bbb222")
+  end
+
+  test "sort reorders the table by created and by state", %{conn: conn} do
+    old = %{
+      "id" => "env_old",
+      "state" => "running",
+      "task_id" => "t1",
+      "spec" => %{"cpus" => 1, "ram_mb" => 512, "storage_gb" => 10},
+      "created_at" => "2026-01-01T00:00:00Z"
+    }
+
+    new = %{
+      "id" => "env_new",
+      "state" => "provisioning",
+      "task_id" => "t2",
+      "spec" => %{"cpus" => 1, "ram_mb" => 512, "storage_gb" => 10},
+      "created_at" => "2026-03-01T00:00:00Z"
+    }
+
+    stub_envs([old, new])
+    {:ok, view, html} = live(conn, ~p"/environments")
+
+    # default sort is created_desc: newest first
+    assert pos(html, "env-env_new") < pos(html, "env-env_old")
+
+    html = sort(view, "created_asc")
+    assert pos(html, "env-env_old") < pos(html, "env-env_new")
+
+    # state sort is alphabetical: provisioning (env_new) before running (env_old)
+    html = sort(view, "state")
+    assert pos(html, "env-env_new") < pos(html, "env-env_old")
+  end
+
+  test "a missing created_at does not crash the default (created) sort", %{conn: conn} do
+    dated = %{
+      "id" => "env_dated",
+      "state" => "running",
+      "task_id" => "t1",
+      "spec" => %{"cpus" => 1, "ram_mb" => 512, "storage_gb" => 10},
+      "created_at" => "2026-01-01T00:00:00Z"
+    }
+
+    # no created_at -> decodes to nil; created_key/1 must sort it to the boundary
+    undated = %{
+      "id" => "env_undated",
+      "state" => "running",
+      "task_id" => "t2",
+      "spec" => %{"cpus" => 1, "ram_mb" => 512, "storage_gb" => 10}
+    }
+
+    stub_envs([dated, undated])
+    {:ok, view, _html} = live(conn, ~p"/environments")
+
+    assert has_element?(view, "#env-env_dated")
+    assert has_element?(view, "#env-env_undated")
+
+    # the asc branch uses the same nil-safe key
+    sort(view, "created_asc")
+    assert has_element?(view, "#env-env_dated")
+    assert has_element?(view, "#env-env_undated")
+  end
+
+  # --- helpers ---
+
+  defp stub_envs(envs) do
+    Application.put_env(:fuse, Fuse.Client.HTTP,
+      base_url: "http://fuse.test",
+      token: "t",
+      req_options: [
+        retry: false,
+        plug: fn conn ->
+          body =
+            case conn.request_path do
+              "/v1/environments" -> %{"environments" => envs}
+              "/v1/hosts" -> %{"hosts" => []}
+              "/v1/snapshots" -> %{"snapshots" => []}
+              _ -> %{}
+            end
+
+          conn
+          |> Plug.Conn.put_resp_content_type("application/json")
+          |> Plug.Conn.send_resp(200, Jason.encode!(body))
+        end
+      ]
+    )
+  end
+
+  defp sort(view, value) do
+    view |> form("form[phx-change='refine']", %{"sort" => value}) |> render_change()
+  end
+
+  defp pos(html, needle) do
+    {start, _} = :binary.match(html, needle)
+    start
   end
 end

@@ -93,6 +93,44 @@ defmodule Fuse.EventStream.ConsumerTest do
     assert Process.alive?(pid)
   end
 
+  test "stops when its last monitored subscriber exits", %{vm_id: vm_id} do
+    sub = spawn(fn -> Process.sleep(:infinity) end)
+    pid = start_consumer(vm_id, subscriber: sub)
+    ref = Process.monitor(pid)
+
+    Process.exit(sub, :kill)
+
+    assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
+  end
+
+  test "keeps running while another subscriber remains", %{vm_id: vm_id} do
+    s1 = spawn(fn -> Process.sleep(:infinity) end)
+    s2 = spawn(fn -> Process.sleep(:infinity) end)
+    pid = start_consumer(vm_id, subscriber: s1)
+    :ok = Consumer.add_subscriber(pid, s2)
+    ref = Process.monitor(pid)
+
+    Process.exit(s1, :kill)
+    refute_receive {:DOWN, ^ref, :process, ^pid, _}, 50
+    assert Process.alive?(pid)
+
+    # the last subscriber leaving stops it
+    Process.exit(s2, :kill)
+    assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
+  end
+
+  test "a consumer started without a subscriber is not stopped by subscriber teardown",
+       %{vm_id: vm_id} do
+    pid = start_consumer(vm_id)
+    ref = Process.monitor(pid)
+
+    # an untracked DOWN must be ignored, not interpreted as a teardown
+    send(pid, {:DOWN, make_ref(), :process, self(), :normal})
+
+    refute_receive {:DOWN, ^ref, :process, ^pid, _}, 50
+    assert Process.alive?(pid)
+  end
+
   test "stops and broadcasts down on a permanent open error (not_found)", %{vm_id: vm_id} do
     error = %Error{code: "not_found", message: "no such env"}
 

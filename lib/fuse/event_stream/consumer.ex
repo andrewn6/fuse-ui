@@ -24,6 +24,9 @@ defmodule Fuse.EventStream.Consumer do
     * `:source` — `Fuse.EventStream.Source` impl (default: configured impl)
     * `:source_opts` — extra opts passed to `source.open/2`
     * `:pubsub` — PubSub server (default `Fuse.PubSub`)
+    * `:subscriber` — a pid to monitor; the consumer self-stops when its last
+      monitored subscriber exits (use `add_subscriber/2` to register more). A
+      consumer started with no subscriber is never torn down this way.
     * `:backoff_initial` / `:backoff_max` — reconnect backoff in ms (default 1000 / 30000)
   """
 
@@ -49,6 +52,11 @@ defmodule Fuse.EventStream.Consumer do
     GenServer.start_link(__MODULE__, opts, gen_opts)
   end
 
+  @doc "Register `pid` as a subscriber to monitor; the consumer stops when its last leaves."
+  @spec add_subscriber(GenServer.server(), pid()) :: :ok
+  def add_subscriber(server, pid) when is_pid(pid),
+    do: GenServer.cast(server, {:add_subscriber, pid})
+
   @impl true
   def init(opts) do
     vm_id = Keyword.fetch!(opts, :vm_id)
@@ -63,6 +71,8 @@ defmodule Fuse.EventStream.Consumer do
       buffer: "",
       last_event_id: nil,
       seen_terminal: false,
+      # pid => monitor ref; empty means "not subscriber-tracked" (never auto-stops)
+      subscribers: monitor_subscriber(%{}, Keyword.get(opts, :subscriber)),
       backoff: initial,
       backoff_initial: initial,
       backoff_max: Keyword.get(opts, :backoff_max, 30_000)
@@ -98,7 +108,29 @@ defmodule Fuse.EventStream.Consumer do
   end
 
   @impl true
+  def handle_cast({:add_subscriber, pid}, state) do
+    {:noreply, %{state | subscribers: monitor_subscriber(state.subscribers, pid)}}
+  end
+
+  @impl true
   def handle_info(:reconnect, state), do: {:noreply, state, {:continue, :connect}}
+
+  # A monitored subscriber (e.g. a LiveView) went away. Drop it; when the last one
+  # leaves, stop — so closing one viewer never tears down the stream for others,
+  # and an abandoned stream doesn't linger. (Untracked consumers never get here.)
+  def handle_info({:DOWN, _ref, :process, pid, _reason}, %{subscribers: subs} = state)
+      when is_map_key(subs, pid) do
+    subs = Map.delete(subs, pid)
+
+    if map_size(subs) == 0 do
+      {:stop, :normal, %{state | subscribers: subs}}
+    else
+      {:noreply, %{state | subscribers: subs}}
+    end
+  end
+
+  # A DOWN we don't track (shouldn't happen, but never route it to the parser).
+  def handle_info({:DOWN, _ref, :process, _pid, _reason}, state), do: {:noreply, state}
 
   # Stray messages while disconnected (between reconnects) belong to a dead socket.
   def handle_info(_message, %{handle: nil} = state), do: {:noreply, state}
@@ -192,5 +224,15 @@ defmodule Fuse.EventStream.Consumer do
   defp broadcast(state, message) do
     Phoenix.PubSub.broadcast(state.pubsub, "environments", message)
     Phoenix.PubSub.broadcast(state.pubsub, "environment:#{state.vm_id}", message)
+  end
+
+  defp monitor_subscriber(subscribers, nil), do: subscribers
+
+  defp monitor_subscriber(subscribers, pid) when is_pid(pid) do
+    if Map.has_key?(subscribers, pid) do
+      subscribers
+    else
+      Map.put(subscribers, pid, Process.monitor(pid))
+    end
   end
 end

@@ -105,87 +105,87 @@ defmodule FuseWeb.EnvironmentLive.Index do
       <div class="flex min-h-full flex-col">
         <div class="mx-auto w-full max-w-5xl flex-1 px-8 py-7">
           <div class="flex items-start justify-between gap-4">
-          <div>
-            <h1 class="text-[22px] font-semibold tracking-tight">Environments</h1>
-            <p class="mt-1 text-[13px] text-muted">
-              Sandboxed VM environments for agent tasks
-              <span class="text-rail-strong">·</span> {length(@environments)} total
-            </p>
+            <div>
+              <h1 class="text-[22px] font-semibold tracking-tight">Environments</h1>
+              <p class="mt-1 text-[13px] text-muted">
+                Sandboxed VM environments for agent tasks
+                <span class="text-rail-strong">·</span> {length(@environments)} total
+              </p>
+            </div>
+            <button
+              phx-click="open_create"
+              class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-[13px] font-medium text-white shadow-sm transition hover:bg-brand-strong"
+            >
+              <.icon name="hero-plus" class="size-4" /> Create environment
+            </button>
           </div>
-          <button
-            phx-click="open_create"
-            class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-[13px] font-medium text-white shadow-sm transition hover:bg-brand-strong"
+
+          <div
+            :if={@load_error}
+            class="mt-5 flex items-start gap-2.5 rounded-lg border border-bad/30 bg-bad-soft px-4 py-3 text-[13px]"
           >
-            <.icon name="hero-plus" class="size-4" /> Create environment
-          </button>
-        </div>
-
-        <div
-          :if={@load_error}
-          class="mt-5 flex items-start gap-2.5 rounded-lg border border-bad/30 bg-bad-soft px-4 py-3 text-[13px]"
-        >
-          <.icon name="hero-exclamation-triangle" class="mt-0.5 size-4 shrink-0 text-bad" />
-          <div>
-            <p class="font-medium text-bad">Couldn't reach fuse</p>
-            <p class="text-muted">{@load_error.message}</p>
+            <.icon name="hero-exclamation-triangle" class="mt-0.5 size-4 shrink-0 text-bad" />
+            <div>
+              <p class="font-medium text-bad">Couldn't reach fuse</p>
+              <p class="text-muted">{@load_error.message}</p>
+            </div>
           </div>
-        </div>
 
-        <div class="mt-5 flex flex-wrap items-center gap-2">
-          <span class="mr-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
-            State
-          </span>
-          <.pill label="All" value="all" active={@filter == "all"} count={length(@environments)} />
-          <.pill
-            :for={state <- @states}
-            label={String.capitalize(state)}
-            value={state}
-            active={@filter == state}
-            count={count_for(@environments, state)}
-          />
-        </div>
+          <div class="mt-5 flex flex-wrap items-center gap-2">
+            <span class="mr-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
+              State
+            </span>
+            <.pill label="All" value="all" active={@filter == "all"} count={length(@environments)} />
+            <.pill
+              :for={state <- @states}
+              label={String.capitalize(state)}
+              value={state}
+              active={@filter == state}
+              count={count_for(@environments, state)}
+            />
+          </div>
 
-        <div class="mt-4 overflow-hidden rounded-xl border border-rail bg-surface">
-          <table class="w-full border-collapse text-left">
-            <thead>
-              <tr class="border-b border-rail bg-surface-soft text-[11px] font-semibold uppercase tracking-wider text-muted">
-                <th class="px-5 py-3 font-semibold">Environment</th>
-                <th class="px-5 py-3 font-semibold">State</th>
-                <th class="px-5 py-3 font-semibold">Task</th>
-                <th class="px-5 py-3 font-semibold">Host</th>
-                <th class="px-5 py-3 text-right font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                :for={env <- visible(@environments, @filter, @query, @sort)}
-                id={"env-#{env.id}"}
-                class="border-b border-rail transition last:border-0 hover:bg-surface-soft/60"
-              >
-                <td class="px-5 py-3.5">
-                  <.link
-                    navigate={~p"/environments/#{env.id}"}
-                    class="font-mono text-[13px] font-medium text-ink hover:text-brand-strong hover:underline"
-                  >
-                    {env.id}
-                  </.link>
-                  <div class="mt-0.5 font-mono text-[11px] text-muted">{spec_label(env.spec)}</div>
-                </td>
-                <td class="px-5 py-3.5"><.state_badge state={env.state} /></td>
-                <td class="px-5 py-3.5 font-mono text-[12px] text-ink/80">{env.task_id || "—"}</td>
-                <td class="px-5 py-3.5 font-mono text-[12px] text-muted">{env.host_id || "—"}</td>
-                <td class="px-5 py-3.5">
-                  <.row_actions env={env} />
-                </td>
-              </tr>
-              <tr :if={visible(@environments, @filter, @query, @sort) == []}>
-                <td colspan="5" class="px-5 py-16 text-center text-[13px] text-muted">
-                  {empty_message(@filter, @load_error)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+          <div class="mt-4 overflow-hidden rounded-xl border border-rail bg-surface">
+            <table class="w-full border-collapse text-left">
+              <thead>
+                <tr class="border-b border-rail bg-surface-soft text-[11px] font-semibold uppercase tracking-wider text-muted">
+                  <th class="px-5 py-3 font-semibold">Environment</th>
+                  <th class="px-5 py-3 font-semibold">State</th>
+                  <th class="px-5 py-3 font-semibold">Task</th>
+                  <th class="px-5 py-3 font-semibold">Host</th>
+                  <th class="px-5 py-3 text-right font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  :for={env <- visible(@environments, @filter, @query, @sort)}
+                  id={"env-#{env.id}"}
+                  class="border-b border-rail transition last:border-0 hover:bg-surface-soft/60"
+                >
+                  <td class="px-5 py-3.5">
+                    <.link
+                      navigate={~p"/environments/#{env.id}"}
+                      class="font-mono text-[13px] font-medium text-ink hover:text-brand-strong hover:underline"
+                    >
+                      {env.id}
+                    </.link>
+                    <div class="mt-0.5 font-mono text-[11px] text-muted">{spec_label(env.spec)}</div>
+                  </td>
+                  <td class="px-5 py-3.5"><.state_badge state={env.state} /></td>
+                  <td class="px-5 py-3.5 font-mono text-[12px] text-ink/80">{env.task_id || "—"}</td>
+                  <td class="px-5 py-3.5 font-mono text-[12px] text-muted">{env.host_id || "—"}</td>
+                  <td class="px-5 py-3.5">
+                    <.row_actions env={env} />
+                  </td>
+                </tr>
+                <tr :if={visible(@environments, @filter, @query, @sort) == []}>
+                  <td colspan="5" class="px-5 py-16 text-center text-[13px] text-muted">
+                    {empty_message(@filter, @load_error)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <.command_bar
@@ -369,7 +369,7 @@ defmodule FuseWeb.EnvironmentLive.Index do
       <div class="mx-auto flex w-full max-w-5xl items-center gap-3">
         <div class="flex items-center gap-2 text-[12px]">
           <span class="tabular-nums text-[#b8b1a4]">
-            {@visible} <span class="text-[#8c8678]">of {@total}</span>
+            {@visible} <span class="text-[#9a9488]">of {@total}</span>
           </span>
           <button
             :if={@active}
@@ -382,7 +382,7 @@ defmodule FuseWeb.EnvironmentLive.Index do
         </div>
 
         <form phx-change="refine" class="ml-auto flex items-center gap-2">
-          <label class="flex items-center gap-1.5 text-[11px] text-[#8c8678]">
+          <label class="flex items-center gap-1.5 text-[11px] text-[#9a9488]">
             Sort
             <select
               name="sort"
@@ -397,7 +397,7 @@ defmodule FuseWeb.EnvironmentLive.Index do
           <div class="relative">
             <.icon
               name="hero-magnifying-glass"
-              class="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-[#8c8678]"
+              class="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-[#9a9488]"
             />
             <input
               type="text"
@@ -406,9 +406,9 @@ defmodule FuseWeb.EnvironmentLive.Index do
               phx-debounce="150"
               autocomplete="off"
               placeholder="Filter environments…"
-              class="w-56 rounded-md border border-[#332c24] bg-[#252019] py-1 pl-7 pr-12 text-[12px] text-[#ece6dd] placeholder:text-[#8c8678] focus:border-brand focus:outline-none"
+              class="w-56 rounded-md border border-[#332c24] bg-[#252019] py-1 pl-7 pr-12 text-[12px] text-[#ece6dd] placeholder:text-[#9a9488] focus:border-brand focus:outline-none"
             />
-            <kbd class="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-[#3a322a] bg-[#1b1714] px-1 text-[10px] text-[#8c8678]">
+            <kbd class="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-[#3a322a] bg-[#1b1714] px-1 text-[10px] text-[#9a9488]">
               ⌘K
             </kbd>
           </div>
@@ -621,10 +621,14 @@ defmodule FuseWeb.EnvironmentLive.Index do
   defp contains?(nil, _q), do: false
   defp contains?(value, q), do: String.contains?(String.downcase(value), q)
 
-  defp sort_envs(environments, "created_asc"), do: Enum.sort_by(environments, &created_key/1, :asc)
+  defp sort_envs(environments, "created_asc"),
+    do: Enum.sort_by(environments, &created_key/1, :asc)
+
   defp sort_envs(environments, "id_asc"), do: Enum.sort_by(environments, &(&1.id || ""))
   defp sort_envs(environments, "state"), do: Enum.sort_by(environments, &(&1.state || ""))
-  defp sort_envs(environments, _created_desc), do: Enum.sort_by(environments, &created_key/1, :desc)
+
+  defp sort_envs(environments, _created_desc),
+    do: Enum.sort_by(environments, &created_key/1, :desc)
 
   # unix seconds so nil created_at sorts to the bottom without a comparator crash
   defp created_key(%{created_at: %DateTime{} = dt}), do: DateTime.to_unix(dt)
