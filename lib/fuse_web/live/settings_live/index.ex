@@ -26,7 +26,7 @@ defmodule FuseWeb.SettingsLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.console current={:settings} counts={@counts} flash={@flash}>
+    <Layouts.console current={:settings} counts={@counts} connection={@connection} flash={@flash}>
       <div class="mx-auto w-full max-w-5xl px-8 py-7">
         <div>
           <h1 class="text-[22px] font-semibold tracking-tight">Settings</h1>
@@ -40,11 +40,21 @@ defmodule FuseWeb.SettingsLive.Index do
             <h2 class="text-[11px] font-semibold uppercase tracking-wider text-muted">Connection</h2>
           </div>
           <dl class="divide-y divide-rail">
-            <.setting_row label="fuse endpoint" hint="The control-plane base URL this console talks to.">
+            <.setting_row label="Status" hint="Live reachability of the fuse control plane.">
+              <Layouts.badge label={status_label(@connection)} color={status_color(@connection)} />
+            </.setting_row>
+
+            <.setting_row
+              label="fuse endpoint"
+              hint="The control-plane base URL this console talks to."
+            >
               <span class="font-mono text-[13px] text-ink">{@base_url}</span>
             </.setting_row>
 
-            <.setting_row label="Inbound token" hint="Console API auth. Presence only — the value is never shown.">
+            <.setting_row
+              label="Inbound token"
+              hint="Console API auth. Presence only — the value is never shown."
+            >
               <Layouts.badge :if={@token_configured?} label="Configured" color={:ok} />
               <Layouts.badge :if={!@token_configured?} label="Not set" color={:muted} />
             </.setting_row>
@@ -96,6 +106,16 @@ defmodule FuseWeb.SettingsLive.Index do
   defp version do
     to_string(Application.spec(:fuse, :vsn) || "dev")
   end
+
+  defp status_label(:ok), do: "Connected"
+  defp status_label(:degraded), do: "Degraded"
+  defp status_label(:unreachable), do: "Unreachable"
+  defp status_label(_), do: "Checking…"
+
+  defp status_color(:ok), do: :ok
+  defp status_color(:degraded), do: :warn
+  defp status_color(:unreachable), do: :bad
+  defp status_color(_), do: :muted
 
   defp sidebar_counts do
     %{

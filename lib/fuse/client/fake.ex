@@ -36,6 +36,9 @@ defmodule Fuse.Client.Fake do
       environments: index(opts[:environments] || []),
       snapshots: index(opts[:snapshots] || []),
       hosts: index(opts[:hosts] || []),
+      # the canned readiness result; override to simulate degraded/unreachable,
+      # e.g. ready: {:error, %Fuse.Error{status: 503}}
+      ready: opts[:ready] || {:ok, %{"status" => "ok"}},
       seq: 0
     }
 
@@ -168,6 +171,11 @@ defmodule Fuse.Client.Fake do
   @impl true
   def remove_host(id), do: delete_one(:hosts, id)
 
+  # --- Health ---
+
+  @impl true
+  def ready, do: Agent.get(agent(), & &1.ready)
+
   # --- internals ---
 
   defp agent do
@@ -226,6 +234,7 @@ defmodule Fuse.Client.Fake do
 
         value ->
           string_key = Atom.to_string(key)
+
           Enum.filter(acc, fn item -> to_string(Map.get(item, string_key)) == to_string(value) end)
       end
     end)
@@ -240,9 +249,15 @@ defmodule Fuse.Client.Fake do
   defp label(:snapshots), do: "snapshot"
   defp label(:hosts), do: "host"
 
-  defp index(list), do: Map.new(list, fn item -> s = stringify(item); {s["id"], s} end)
+  defp index(list),
+    do:
+      Map.new(list, fn item ->
+        s = stringify(item)
+        {s["id"], s}
+      end)
 
-  defp fetch(map, key) when is_atom(key), do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  defp fetch(map, key) when is_atom(key),
+    do: Map.get(map, key) || Map.get(map, Atom.to_string(key))
 
   defp stringify(map) when is_map(map) and not is_struct(map),
     do: Map.new(map, fn {k, v} -> {to_string(k), stringify(v)} end)

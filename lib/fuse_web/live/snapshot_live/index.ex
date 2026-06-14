@@ -47,14 +47,13 @@ defmodule FuseWeb.SnapshotLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.console current={:snapshots} counts={@counts} flash={@flash}>
+    <Layouts.console current={:snapshots} counts={@counts} connection={@connection} flash={@flash}>
       <div class="mx-auto w-full max-w-5xl px-8 py-7">
         <div class="flex items-start justify-between gap-4">
           <div>
             <h1 class="text-[22px] font-semibold tracking-tight">Snapshots</h1>
             <p class="mt-1 text-[13px] text-muted">
-              VM snapshots
-              <span class="text-rail-strong">·</span> {length(@snapshots)} total
+              VM snapshots <span class="text-rail-strong">·</span> {length(@snapshots)} total
             </p>
           </div>
         </div>
@@ -71,7 +70,9 @@ defmodule FuseWeb.SnapshotLive.Index do
         </div>
 
         <div class="mt-5 flex flex-wrap items-center gap-2">
-          <span class="mr-1 text-[11px] font-semibold uppercase tracking-wider text-muted">State</span>
+          <span class="mr-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
+            State
+          </span>
           <.pill label="All" value="all" active={@filter == "all"} count={length(@snapshots)} />
           <.pill
             :for={state <- @states}
@@ -105,11 +106,18 @@ defmodule FuseWeb.SnapshotLive.Index do
                   <div class="mt-0.5 font-mono text-[11px] text-muted">{snapshot.vm_id || "—"}</div>
                 </td>
                 <td class="px-5 py-3.5">
-                  <Layouts.badge label={label_for(snapshot.state)} color={badge_color(snapshot.state)} />
+                  <Layouts.badge
+                    label={label_for(snapshot.state)}
+                    color={badge_color(snapshot.state)}
+                  />
                 </td>
                 <td class="px-5 py-3.5 text-[12px] text-ink/80">{snapshot.mode || "—"}</td>
-                <td class="px-5 py-3.5 font-mono text-[12px] text-ink/80">{humanize_size(snapshot.size_bytes)}</td>
-                <td class="px-5 py-3.5 font-mono text-[12px] text-muted">{format_dt(snapshot.created_at)}</td>
+                <td class="px-5 py-3.5 font-mono text-[12px] text-ink/80">
+                  {humanize_size(snapshot.size_bytes)}
+                </td>
+                <td class="px-5 py-3.5 font-mono text-[12px] text-muted">
+                  {format_dt(snapshot.created_at)}
+                </td>
                 <td class="px-5 py-3.5">
                   <div class="flex items-center justify-end gap-1.5">
                     <button
@@ -144,7 +152,9 @@ defmodule FuseWeb.SnapshotLive.Index do
                       </button>
                       <button
                         type="button"
-                        phx-click={Layouts.hide_modal("confirm-restore-#{snapshot.id}") |> JS.push("restore")}
+                        phx-click={
+                          Layouts.hide_modal("confirm-restore-#{snapshot.id}") |> JS.push("restore")
+                        }
                         phx-value-id={snapshot.id}
                         class="rounded-lg bg-brand px-3 py-1.5 text-[13px] font-medium text-white hover:bg-brand-strong"
                       >
@@ -168,7 +178,10 @@ defmodule FuseWeb.SnapshotLive.Index do
                       </button>
                       <button
                         type="button"
-                        phx-click={Layouts.hide_modal("confirm-delete-#{snapshot.id}") |> JS.push("delete_snapshot")}
+                        phx-click={
+                          Layouts.hide_modal("confirm-delete-#{snapshot.id}")
+                          |> JS.push("delete_snapshot")
+                        }
                         phx-value-id={snapshot.id}
                         class="rounded-lg bg-bad px-3 py-1.5 text-[13px] font-medium text-white hover:bg-bad/90"
                       >

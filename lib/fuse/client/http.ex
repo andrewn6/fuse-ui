@@ -108,6 +108,13 @@ defmodule Fuse.Client.HTTP do
   @impl true
   def remove_host(id), do: request(:delete, "/v1/hosts/" <> enc(id))
 
+  # --- Health ---
+
+  # Unauthenticated readiness probe. 200 -> ready; 503 -> reachable but a
+  # dependency is unhealthy (mapped to a %Fuse.Error{status: 503} by request/3).
+  @impl true
+  def ready, do: request(:get, "/ready")
+
   # --- internals ---
 
   defp request(method, path, opts \\ []) do

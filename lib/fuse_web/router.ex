@@ -32,7 +32,8 @@ defmodule FuseWeb.Router do
     delete "/logout", SessionController, :delete
 
     # The console, gated by the session auth hook (open in insecure/no-token mode).
-    live_session :console, on_mount: [FuseWeb.AuthHook, FuseWeb.CommandPalette] do
+    live_session :console,
+      on_mount: [FuseWeb.AuthHook, FuseWeb.CommandPalette, FuseWeb.Connection] do
       live "/environments", EnvironmentLive.Index, :index
       live "/environments/:id", EnvironmentLive.Show, :show
       live "/hosts", HostLive.Index, :index

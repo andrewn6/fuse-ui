@@ -101,7 +101,7 @@ defmodule FuseWeb.EnvironmentLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.console current={:environments} counts={@counts} flash={@flash}>
+    <Layouts.console current={:environments} counts={@counts} connection={@connection} flash={@flash}>
       <div class="flex min-h-full flex-col">
         <div class="mx-auto w-full max-w-5xl flex-1 px-8 py-7">
           <div class="flex items-start justify-between gap-4">
@@ -113,12 +113,18 @@ defmodule FuseWeb.EnvironmentLive.Index do
               </p>
             </div>
             <button
+              :if={not onboarding?(@environments, @load_error)}
               phx-click="open_create"
               class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-[13px] font-medium text-white shadow-sm transition hover:bg-brand-strong"
             >
               <.icon name="hero-plus" class="size-4" /> Create environment
             </button>
           </div>
+
+          <.onboarding
+            :if={onboarding?(@environments, @load_error)}
+            host_count={@counts[:hosts] || 0}
+          />
 
           <div
             :if={@load_error}
@@ -131,7 +137,10 @@ defmodule FuseWeb.EnvironmentLive.Index do
             </div>
           </div>
 
-          <div class="mt-5 flex flex-wrap items-center gap-2">
+          <div
+            :if={not onboarding?(@environments, @load_error)}
+            class="mt-5 flex flex-wrap items-center gap-2"
+          >
             <span class="mr-1 text-[11px] font-semibold uppercase tracking-wider text-muted">
               State
             </span>
@@ -145,7 +154,10 @@ defmodule FuseWeb.EnvironmentLive.Index do
             />
           </div>
 
-          <div class="mt-4 overflow-hidden rounded-xl border border-rail bg-surface">
+          <div
+            :if={not onboarding?(@environments, @load_error)}
+            class="mt-4 overflow-hidden rounded-xl border border-rail bg-surface"
+          >
             <table class="w-full border-collapse text-left">
               <thead>
                 <tr class="border-b border-rail bg-surface-soft text-[11px] font-semibold uppercase tracking-wider text-muted">
@@ -189,6 +201,7 @@ defmodule FuseWeb.EnvironmentLive.Index do
         </div>
 
         <.command_bar
+          :if={not onboarding?(@environments, @load_error)}
           visible={length(visible(@environments, @filter, @query, @sort))}
           total={length(@environments)}
           query={@query}
@@ -415,6 +428,91 @@ defmodule FuseWeb.EnvironmentLive.Index do
         </form>
       </div>
     </div>
+    """
+  end
+
+  # First-run guidance shown when fuse is reachable but no environments exist.
+  # Steps reflect real state: connected (we are), a host registered (counts.hosts),
+  # and creating the first env (gated on a host existing).
+  attr :host_count, :integer, required: true
+
+  defp onboarding(assigns) do
+    ~H"""
+    <div class="mt-6 overflow-hidden rounded-xl border border-rail bg-surface">
+      <div class="border-b border-rail px-6 py-5">
+        <h2 class="text-[15px] font-semibold text-ink">Get started</h2>
+        <p class="mt-1 text-[13px] text-muted">
+          A few steps to launch your first sandboxed environment.
+        </p>
+      </div>
+      <ol class="divide-y divide-rail">
+        <.step
+          done={true}
+          index="1"
+          title="Connect to fuse"
+          desc="Your console is talking to the control plane."
+        >
+          <Layouts.badge label="Connected" color={:ok} />
+        </.step>
+
+        <.step
+          done={@host_count > 0}
+          index="2"
+          title="Register a host"
+          desc="Add a worker node so fuse has somewhere to schedule environments."
+        >
+          <Layouts.badge :if={@host_count > 0} label="Registered" color={:ok} />
+          <.link
+            :if={@host_count == 0}
+            navigate={~p"/hosts"}
+            class="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-[13px] font-medium text-white hover:bg-brand-strong"
+          >
+            <.icon name="hero-plus" class="size-4" /> Register host
+          </.link>
+        </.step>
+
+        <.step
+          done={false}
+          index="3"
+          title="Create an environment"
+          desc="Launch a microVM for an agent task."
+        >
+          <button
+            :if={@host_count > 0}
+            phx-click="open_create"
+            class="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-[13px] font-medium text-white hover:bg-brand-strong"
+          >
+            <.icon name="hero-plus" class="size-4" /> Create environment
+          </button>
+          <span :if={@host_count == 0} class="text-[12px] text-muted">Register a host first</span>
+        </.step>
+      </ol>
+    </div>
+    """
+  end
+
+  attr :index, :string, required: true
+  attr :title, :string, required: true
+  attr :desc, :string, required: true
+  attr :done, :boolean, default: false
+  slot :inner_block, required: true
+
+  defp step(assigns) do
+    ~H"""
+    <li class="flex items-center gap-4 px-6 py-4">
+      <span class={[
+        "flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold",
+        (@done && "bg-ok-soft text-ok") || "bg-surface-soft text-muted ring-1 ring-rail"
+      ]}>
+        <.icon :if={@done} name="hero-check" class="size-4" />
+        <span :if={not @done}>{@index}</span>
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="text-[13px] font-medium text-ink">{@title}</p>
+        <p class="text-[12px] text-muted">{@desc}</p>
+      </div>
+      <div class="shrink-0">{render_slot(@inner_block)}</div>
+    </li>
     """
   end
 
@@ -646,6 +744,10 @@ defmodule FuseWeb.EnvironmentLive.Index do
   defp filters_active?(filter, query, sort) do
     filter != "all" or String.trim(query) != "" or sort != @default_sort
   end
+
+  # show first-run onboarding when fuse is reachable (list call succeeded) but
+  # there are no environments yet
+  defp onboarding?(environments, load_error), do: environments == [] and is_nil(load_error)
 
   # --- formatting ---
 

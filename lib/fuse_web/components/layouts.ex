@@ -166,6 +166,11 @@ defmodule FuseWeb.Layouts do
 
   attr :counts, :map, default: %{}
   attr :flash, :map, default: %{}
+
+  attr :connection, :atom,
+    default: :checking,
+    doc: ":checking | :ok | :degraded | :unreachable (from FuseWeb.Connection)"
+
   slot :inner_block, required: true
 
   def console(assigns) do
@@ -190,16 +195,20 @@ defmodule FuseWeb.Layouts do
         </div>
 
         <div class="px-3">
-          <button class="flex w-full items-center gap-2.5 rounded-lg border border-rail bg-surface px-2.5 py-2 text-left hover:bg-surface-soft">
-            <span class="flex size-6 items-center justify-center rounded-md bg-ink text-[11px] font-semibold text-canvas">
-              f
+          <.link
+            navigate={~p"/settings"}
+            class="flex w-full items-center gap-2.5 rounded-lg border border-rail bg-surface px-2.5 py-2 text-left hover:bg-surface-soft"
+            title="Control-plane connection"
+          >
+            <span class={["size-2 shrink-0 rounded-full", conn_dot(@connection)]} />
+            <span class="min-w-0 flex-1 leading-tight">
+              <span class="block truncate font-mono text-[12px] font-medium text-ink">
+                {conn_endpoint()}
+              </span>
+              <span class="block text-[11px] text-muted">{conn_label(@connection)}</span>
             </span>
-            <span class="flex-1 leading-tight">
-              <span class="block text-[13px] font-medium">flint</span>
-              <span class="block text-[11px] text-muted">prod · us-east-1</span>
-            </span>
-            <.icon name="hero-chevron-up-down" class="size-4 text-muted" />
-          </button>
+            <.icon name="hero-chevron-right" class="size-4 shrink-0 text-muted" />
+          </.link>
         </div>
 
         <div class="px-3 pt-3">
@@ -262,10 +271,12 @@ defmodule FuseWeb.Layouts do
         </nav>
 
         <div class="flex items-center gap-2.5 border-t border-rail px-4 py-3">
-          <span class="flex size-7 items-center justify-center rounded-full bg-surface-soft text-[11px] font-semibold text-muted ring-1 ring-rail">
-            U
+          <%!-- fuse has no user identity (single shared token); show the real auth mode --%>
+          <span class="flex items-center gap-1.5 truncate text-[11px] text-muted">
+            <.icon name={auth_icon()} class="size-3.5" />
+            {auth_label()}
           </span>
-          <span class="flex-1 truncate font-mono text-[11px] text-muted">usr_10vd…7hsi</span>
+          <span class="flex-1"></span>
           <%!-- theme toggle: moon switches to dark (shown in light mode), sun switches
                 back (shown in dark mode); state lives in localStorage via root.html.heex --%>
           <button
@@ -746,4 +757,47 @@ defmodule FuseWeb.Layouts do
   defp badge_palette(:warn), do: {"bg-warn", "text-warn", "bg-warn-soft"}
   defp badge_palette(:bad), do: {"bg-bad", "text-bad", "bg-bad-soft"}
   defp badge_palette(_), do: {"bg-muted", "text-muted", "bg-surface-soft"}
+
+  # --- connection panel ---
+
+  # the fuse endpoint as a compact host[:port] label, from the configured base_url
+  defp conn_endpoint do
+    case (Application.get_env(:fuse, Fuse.Client.HTTP) || [])[:base_url] do
+      url when is_binary(url) and url != "" -> display_host(url)
+      _ -> "fuse"
+    end
+  end
+
+  defp display_host(url) do
+    case URI.parse(url) do
+      %URI{host: host, port: port} when is_binary(host) and host != "" ->
+        if port && port not in [80, 443], do: "#{host}:#{port}", else: host
+
+      _ ->
+        url
+    end
+  end
+
+  defp conn_dot(:ok), do: "bg-ok"
+  defp conn_dot(:degraded), do: "bg-warn"
+  defp conn_dot(:unreachable), do: "bg-bad"
+  defp conn_dot(_), do: "bg-muted motion-safe:animate-pulse"
+
+  defp conn_label(:ok), do: "Connected"
+  defp conn_label(:degraded), do: "Degraded"
+  defp conn_label(:unreachable), do: "Unreachable"
+  defp conn_label(_), do: "Checking…"
+
+  # honest auth mode for the footer (no fake user identity)
+  defp auth_label, do: if(console_token_configured?(), do: "Token auth", else: "Open access")
+
+  defp auth_icon,
+    do: if(console_token_configured?(), do: "hero-lock-closed", else: "hero-lock-open")
+
+  defp console_token_configured? do
+    case (Application.get_env(:fuse, FuseWeb.Plugs.ApiAuth) || [])[:token] do
+      token when is_binary(token) and token != "" -> true
+      _ -> false
+    end
+  end
 end

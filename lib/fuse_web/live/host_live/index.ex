@@ -54,14 +54,13 @@ defmodule FuseWeb.HostLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.console current={:hosts} counts={@counts} flash={@flash}>
+    <Layouts.console current={:hosts} counts={@counts} connection={@connection} flash={@flash}>
       <div class="mx-auto w-full max-w-5xl px-8 py-7">
         <div class="flex items-start justify-between gap-4">
           <div>
             <h1 class="text-[22px] font-semibold tracking-tight">Hosts</h1>
             <p class="mt-1 text-[13px] text-muted">
-              Worker nodes in the fleet
-              <span class="text-rail-strong">·</span> {length(@hosts)} total
+              Worker nodes in the fleet <span class="text-rail-strong">·</span> {length(@hosts)} total
             </p>
           </div>
           <button
@@ -124,7 +123,9 @@ defmodule FuseWeb.HostLive.Index do
               >
                 <td class="px-5 py-3.5">
                   <div class="font-mono text-[13px] font-medium text-ink">{host.id}</div>
-                  <div class="mt-0.5 font-mono text-[11px] text-muted">{region_label(host.region)}</div>
+                  <div class="mt-0.5 font-mono text-[11px] text-muted">
+                    {region_label(host.region)}
+                  </div>
                 </td>
                 <td class="px-5 py-3.5">
                   <Layouts.badge label={state_label(host)} color={state_color(host)} />
@@ -162,8 +163,7 @@ defmodule FuseWeb.HostLive.Index do
                   <Layouts.modal id={"confirm-remove-#{host.id}"}>
                     <:title>Remove host</:title>
                     <p class="text-[13px] text-muted">
-                      Remove
-                      <span class="font-mono text-ink">{host.id}</span>
+                      Remove <span class="font-mono text-ink">{host.id}</span>
                       from the cluster? Existing VMs are not migrated. This can't be undone.
                     </p>
                     <:actions>
@@ -209,7 +209,13 @@ defmodule FuseWeb.HostLive.Index do
             <div class="grid grid-cols-2 gap-3">
               <.field name="cpus" label="vCPUs" type="number" placeholder="32" required />
               <.field name="ram_mb" label="RAM (MB)" type="number" placeholder="65536" required />
-              <.field name="storage_gb" label="Storage (GB)" type="number" placeholder="1000" required />
+              <.field
+                name="storage_gb"
+                label="Storage (GB)"
+                type="number"
+                placeholder="1000"
+                required
+              />
               <.field name="vm_count" label="Max VMs" type="number" placeholder="48" required />
             </div>
           </div>

@@ -214,9 +214,61 @@ defmodule FuseWeb.EnvironmentLiveTest do
     assert has_element?(view, "#env-env_undated")
   end
 
+  test "the sidebar shows the real fuse endpoint and drops the boilerplate", %{conn: conn} do
+    {:ok, _view, html} = live(conn, ~p"/environments")
+
+    assert html =~ "fuse.test"
+    refute html =~ "flint"
+    refute html =~ "usr_10vd"
+    refute html =~ "prod · us-east-1"
+  end
+
+  test "the sidebar reflects live fuse reachability", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/environments")
+    # the connected mount polls /ready (plug catch-all -> 200); render/1 flushes it
+    assert render(view) =~ "Connected"
+  end
+
+  @host %{
+    "id" => "host_1",
+    "state" => "active",
+    "region" => "us-east-1",
+    "capacity" => %{"cpus" => 8, "ram_mb" => 16_384, "storage_gb" => 100, "vm_count" => 4},
+    "allocated" => %{"cpus" => 0, "ram_mb" => 0, "storage_gb" => 0, "vm_count" => 0}
+  }
+
+  test "onboarding shows with no environments and gates create until a host exists", %{conn: conn} do
+    stub_fleet([], [])
+    {:ok, view, html} = live(conn, ~p"/environments")
+
+    assert html =~ "Get started"
+    assert html =~ "Register a host first"
+    # the onboarding CTA (not the always-present sidebar nav link)
+    assert has_element?(view, "a[href='/hosts']", "Register host")
+    refute has_element?(view, "button[phx-click='open_create']")
+  end
+
+  test "onboarding marks the host step done and enables create once a host exists", %{conn: conn} do
+    stub_fleet([], [@host])
+    {:ok, view, html} = live(conn, ~p"/environments")
+
+    assert html =~ "Get started"
+    assert html =~ "Registered"
+    assert has_element?(view, "button[phx-click='open_create']")
+    # the onboarding register-host CTA is gone (sidebar nav link is unaffected)
+    refute has_element?(view, "a[href='/hosts']", "Register host")
+  end
+
+  test "no onboarding once environments exist", %{conn: conn} do
+    {:ok, _view, html} = live(conn, ~p"/environments")
+    refute html =~ "Get started"
+  end
+
   # --- helpers ---
 
-  defp stub_envs(envs) do
+  defp stub_envs(envs), do: stub_fleet(envs, [])
+
+  defp stub_fleet(envs, hosts) do
     Application.put_env(:fuse, Fuse.Client.HTTP,
       base_url: "http://fuse.test",
       token: "t",
@@ -226,7 +278,7 @@ defmodule FuseWeb.EnvironmentLiveTest do
           body =
             case conn.request_path do
               "/v1/environments" -> %{"environments" => envs}
-              "/v1/hosts" -> %{"hosts" => []}
+              "/v1/hosts" -> %{"hosts" => hosts}
               "/v1/snapshots" -> %{"snapshots" => []}
               _ -> %{}
             end

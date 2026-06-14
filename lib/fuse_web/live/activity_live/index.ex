@@ -23,7 +23,7 @@ defmodule FuseWeb.ActivityLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.console current={:activity} counts={@counts} flash={@flash}>
+    <Layouts.console current={:activity} counts={@counts} connection={@connection} flash={@flash}>
       <div class="mx-auto w-full max-w-5xl px-8 py-7">
         <div>
           <h1 class="text-[22px] font-semibold tracking-tight">Activity</h1>

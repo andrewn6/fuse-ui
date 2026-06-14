@@ -50,6 +50,9 @@ defmodule Fuse.Client do
   @callback uncordon_host(id()) :: result(nil)
   @callback remove_host(id()) :: result(nil)
 
+  # --- Health (unauthenticated probe) ---
+  @callback ready() :: result(map())
+
   @default_impl Fuse.Client.HTTP
 
   @doc "The configured client implementation module."
@@ -78,4 +81,7 @@ defmodule Fuse.Client do
   def cordon_host(id), do: impl().cordon_host(id)
   def uncordon_host(id), do: impl().uncordon_host(id)
   def remove_host(id), do: impl().remove_host(id)
+
+  # --- Health ---
+  def ready, do: impl().ready()
 end

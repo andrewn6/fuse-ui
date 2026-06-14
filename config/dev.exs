@@ -7,6 +7,13 @@ config :fuse, Fuse.Repo,
   stacktrace: true,
   show_sensitive_data_on_connection_error: true
 
+# Fail fast when fuse is unreachable in dev (deep-merges with the base_url set in
+# config.exs). Without this, Req's transient-failure retries make every dashboard
+# load hang for ~30-45s when nothing valid is listening on :8080, instead of
+# degrading immediately to the "couldn't reach fuse" banner. (test.exs does the
+# same for its error-path tests.)
+config :fuse, Fuse.Client.HTTP, req_options: [retry: false, receive_timeout: 8_000]
+
 # For development, we disable any cache and enable
 # debugging and code reloading.
 #

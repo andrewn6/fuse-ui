@@ -102,7 +102,7 @@ defmodule FuseWeb.EnvironmentLive.Show do
   @impl true
   def render(%{env: nil} = assigns) do
     ~H"""
-    <Layouts.console current={:environments} flash={@flash}>
+    <Layouts.console current={:environments} connection={@connection} flash={@flash}>
       <div class="mx-auto w-full max-w-2xl px-8 py-16 text-center">
         <div class="mx-auto flex size-12 items-center justify-center rounded-xl bg-bad-soft">
           <.icon name="hero-exclamation-triangle" class="size-6 text-bad" />
@@ -125,7 +125,7 @@ defmodule FuseWeb.EnvironmentLive.Show do
 
   def render(assigns) do
     ~H"""
-    <Layouts.console current={:environments} flash={@flash}>
+    <Layouts.console current={:environments} connection={@connection} flash={@flash}>
       <div class="border-b border-rail bg-surface px-8 py-5">
         <.link
           navigate={~p"/environments"}
