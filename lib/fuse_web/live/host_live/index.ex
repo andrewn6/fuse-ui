@@ -22,6 +22,8 @@ defmodule FuseWeb.HostLive.Index do
      |> assign(:page_title, "Hosts")
      |> assign(:load_error, load_error)
      |> assign(:hosts, hosts)
+     |> assign(:preset, "medium")
+     |> assign(:host, preset_values("medium"))
      |> assign(:counts, sidebar_counts(hosts))}
   end
 
@@ -38,12 +40,26 @@ defmodule FuseWeb.HostLive.Index do
     {:noreply, run_action(socket, fn -> Hosts.remove(id) end, "Host removed.")}
   end
 
+  # keep the form controlled so preset clicks / register errors don't wipe input
+  def handle_event("validate", %{"host" => params}, socket) do
+    {:noreply, assign(socket, :host, params)}
+  end
+
+  def handle_event("preset", %{"size" => size}, socket) do
+    {:noreply,
+     socket
+     |> assign(:preset, size)
+     |> assign(:host, Map.merge(socket.assigns.host, preset_values(size)))}
+  end
+
   def handle_event("register_host", %{"host" => params}, socket) do
     case Hosts.register(register_attrs(params)) do
       {:ok, _host} ->
         {:noreply,
          socket
          |> reload_hosts()
+         |> assign(:preset, "medium")
+         |> assign(:host, preset_values("medium"))
          |> put_flash(:info, "Host registered.")}
 
       {:error, %Fuse.Error{} = error} ->
@@ -195,28 +211,84 @@ defmodule FuseWeb.HostLive.Index do
 
       <Layouts.modal id="register-host">
         <:title>Register host</:title>
-        <form phx-submit="register_host" class="space-y-4">
+        <form phx-submit="register_host" phx-change="validate" class="space-y-4">
           <div class="grid grid-cols-2 gap-3">
-            <.field name="id" label="Host ID" placeholder="host_us_east_1a" required mono />
-            <.field name="region" label="Region" placeholder="us-east-1" />
+            <.field
+              name="id"
+              label="Host ID"
+              placeholder="host_us_east_1a"
+              value={@host["id"]}
+              hint="A unique name for this node."
+              required
+              mono
+            />
+            <.field
+              name="region"
+              label="Region"
+              placeholder="us-east-1"
+              value={@host["region"]}
+              hint="Optional. Where this host runs."
+            />
           </div>
-          <.field name="url" label="URL" placeholder="https://host.internal:8443" required mono />
+          <.field
+            name="url"
+            label="URL"
+            placeholder="https://host.internal:8443"
+            value={@host["url"]}
+            hint="How fuse reaches this host's agent."
+            required
+            mono
+          />
 
           <div>
-            <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">
-              Capacity
+            <div class="mb-1.5 flex items-center justify-between gap-2">
+              <p class="text-[11px] font-semibold uppercase tracking-wider text-muted">Capacity</p>
+              <div class="flex items-center gap-1">
+                <.preset_button size="small" label="Small" active={@preset == "small"} />
+                <.preset_button size="medium" label="Medium" active={@preset == "medium"} />
+                <.preset_button size="large" label="Large" active={@preset == "large"} />
+              </div>
+            </div>
+            <p class="mb-2 text-[11px] text-muted">
+              This host's resource budget — pick a node preset or enter exact values for the machine.
             </p>
             <div class="grid grid-cols-2 gap-3">
-              <.field name="cpus" label="vCPUs" type="number" placeholder="32" required />
-              <.field name="ram_mb" label="RAM (MB)" type="number" placeholder="65536" required />
+              <.field
+                name="cpus"
+                label="vCPUs"
+                type="number"
+                placeholder="32"
+                value={@host["cpus"]}
+                hint="Total vCPUs to offer fuse."
+                required
+              />
+              <.field
+                name="ram_mb"
+                label="RAM (MB)"
+                type="number"
+                placeholder="65536"
+                value={@host["ram_mb"]}
+                hint="Total memory to offer, in MB."
+                required
+              />
               <.field
                 name="storage_gb"
                 label="Storage (GB)"
                 type="number"
                 placeholder="1000"
+                value={@host["storage_gb"]}
+                hint="Disk to offer, in GB."
                 required
               />
-              <.field name="vm_count" label="Max VMs" type="number" placeholder="48" required />
+              <.field
+                name="vm_count"
+                label="Max VMs"
+                type="number"
+                placeholder="48"
+                value={@host["vm_count"]}
+                hint="Hard cap on concurrent microVMs."
+                required
+              />
             </div>
           </div>
 
@@ -243,10 +315,33 @@ defmodule FuseWeb.HostLive.Index do
 
   # --- components ---
 
+  attr :size, :string, required: true
+  attr :label, :string, required: true
+  attr :active, :boolean, default: false
+
+  defp preset_button(assigns) do
+    ~H"""
+    <button
+      type="button"
+      phx-click="preset"
+      phx-value-size={@size}
+      class={[
+        "rounded-md px-2 py-0.5 text-[11px] font-medium ring-1 transition",
+        (@active && "bg-brand-soft text-brand-strong ring-brand/40") ||
+          "bg-surface text-muted ring-rail hover:bg-surface-soft"
+      ]}
+    >
+      {@label}
+    </button>
+    """
+  end
+
   attr :name, :string, required: true
   attr :label, :string, required: true
   attr :type, :string, default: "text"
   attr :placeholder, :string, default: nil
+  attr :value, :any, default: nil
+  attr :hint, :string, default: nil
   attr :required, :boolean, default: false
   attr :mono, :boolean, default: false
 
@@ -258,12 +353,14 @@ defmodule FuseWeb.HostLive.Index do
         type={@type}
         name={"host[#{@name}]"}
         placeholder={@placeholder}
+        value={@value}
         required={@required}
         class={[
           "w-full rounded-lg border border-rail bg-surface px-3 py-2 text-[13px] text-ink placeholder:text-muted/60 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand-soft",
           @mono && "font-mono"
         ]}
       />
+      <span :if={@hint} class="mt-1 block text-[11px] text-muted">{@hint}</span>
     </label>
     """
   end
@@ -304,6 +401,17 @@ defmodule FuseWeb.HostLive.Index do
       }
     }
   end
+
+  # capacity defaults for the node-size presets (string-valued so they drop
+  # straight into the controlled form's @host params and number inputs)
+  defp preset_values("small"),
+    do: %{"cpus" => "8", "ram_mb" => "16384", "storage_gb" => "200", "vm_count" => "8"}
+
+  defp preset_values("large"),
+    do: %{"cpus" => "64", "ram_mb" => "131072", "storage_gb" => "2000", "vm_count" => "96"}
+
+  defp preset_values(_medium),
+    do: %{"cpus" => "32", "ram_mb" => "65536", "storage_gb" => "1000", "vm_count" => "48"}
 
   # --- data ---
 
