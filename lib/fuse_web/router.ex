@@ -14,11 +14,14 @@ defmodule FuseWeb.Router do
     plug :accepts, ["json"]
   end
 
-  # Inbound auth for the control-plane API. Mirrors fuse's access-control model
-  # (bearer token now; CIDR allowlist to follow in the safety round). No-op when
-  # CONTROL_PLANE_TOKEN is unset, so this layer is opt-in per deployment.
+  # Inbound safety for the control-plane API, mirroring fuse's access-control
+  # model. Ordered cheapest-gate-first: reject disallowed source networks, then
+  # authenticate the bearer token, then rate-limit authenticated writes. Each
+  # plug is a no-op until configured, so this layer is opt-in per deployment.
   pipeline :api_protected do
+    plug FuseWeb.Plugs.CidrAllowlist
     plug FuseWeb.Plugs.ApiAuth
+    plug FuseWeb.Plugs.RateLimiter
   end
 
   scope "/", FuseWeb do

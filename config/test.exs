@@ -37,6 +37,12 @@ config :fuse, Fuse.Client.HTTP,
 # Disable swoosh api client as it is only required for production adapters
 config :swoosh, :api_client, false
 
+# Keep the proxy hot path out of the DB in the general suite (sandbox is :manual,
+# so background writes from request processes would error). Mirror/audit tests
+# flip these on per-test and check out a sandbox connection.
+config :fuse, Fuse.Mirror, enabled: false
+config :fuse, Fuse.Audit, enabled: false
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

@@ -10,6 +10,7 @@ defmodule Fuse.Environments do
   always match on a single error shape.
   """
 
+  alias Fuse.Bounds
   alias Fuse.Client
   alias Fuse.Environments.Environment
   alias Fuse.Error
@@ -76,6 +77,7 @@ defmodule Fuse.Environments do
   defp build_create_params(attrs) do
     with {:ok, task_id} <- fetch_required(attrs, :task_id),
          {:ok, spec} <- build_spec(fetch(attrs, :spec)),
+         :ok <- Bounds.check(spec),
          {:ok, manifest_inline} <- build_manifest(attrs) do
       params =
         %{"task_id" => task_id, "spec" => ResourceSpec.to_wire(spec)}
@@ -99,7 +101,9 @@ defmodule Fuse.Environments do
   end
 
   defp build_spec(nil), do: {:error, invalid_argument("spec is required")}
-  defp build_spec(_other), do: {:error, invalid_argument("spec must be a map or %Fuse.ResourceSpec{}")}
+
+  defp build_spec(_other),
+    do: {:error, invalid_argument("spec must be a map or %Fuse.ResourceSpec{}")}
 
   defp build_manifest(attrs) do
     cond do
@@ -108,8 +112,11 @@ defmodule Fuse.Environments do
 
       not is_nil(fetch(attrs, :manifest)) ->
         case Manifest.encode(fetch(attrs, :manifest)) do
-          {:ok, encoded} -> {:ok, encoded}
-          {:error, reason} -> {:error, invalid_argument("invalid manifest", %{"reason" => inspect(reason)})}
+          {:ok, encoded} ->
+            {:ok, encoded}
+
+          {:error, reason} ->
+            {:error, invalid_argument("invalid manifest", %{"reason" => inspect(reason)})}
         end
 
       true ->

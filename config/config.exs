@@ -27,6 +27,28 @@ config :fuse, :event_source, Fuse.EventStream.Source.HTTP
 # fuse token. nil = auth disabled (dev/test); set CONTROL_PLANE_TOKEN in runtime.exs.
 config :fuse, FuseWeb.Plugs.ApiAuth, token: nil
 
+# Resource caps enforced before a create is forwarded to fuse. Generous defaults
+# that won't reject normal plans; tune per deployment. A nil cap means "no limit".
+config :fuse, Fuse.Bounds,
+  max_cpus: 64,
+  max_ram_mb: 262_144,
+  max_storage_gb: 4_096,
+  max_runtime_seconds: 604_800
+
+# Write-endpoint rate limiting (fixed window per remote IP). Off by default
+# (limit: nil) so dev/test are unthrottled; set a limit in runtime.exs for prod.
+config :fuse, FuseWeb.Plugs.RateLimiter, limit: nil, window_ms: 60_000
+
+# Source-network allowlist for the control-plane API. Empty = open to all
+# sources; set CONTROL_PLANE_ALLOWED_CIDRS in runtime.exs to restrict.
+config :fuse, FuseWeb.Plugs.CidrAllowlist, cidrs: []
+
+# Local read-model mirror + audit log of mutating actions. Disabled in test (see
+# config/test.exs) so the proxy hot path never touches the DB there; enabled
+# elsewhere. Best-effort: a mirror/audit write failure never breaks a request.
+config :fuse, Fuse.Mirror, enabled: true
+config :fuse, Fuse.Audit, enabled: true
+
 # Configures the endpoint
 config :fuse, FuseWeb.Endpoint,
   url: [host: "localhost"],

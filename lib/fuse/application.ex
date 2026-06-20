@@ -21,6 +21,8 @@ defmodule Fuse.Application do
       # Event streaming: registry (one consumer per vm_id) + its dynamic supervisor.
       {Registry, keys: :unique, name: Fuse.EventStream.Registry},
       Fuse.EventStream.Supervisor,
+      # Owns the rate-limiter ETS table (the plug is a no-op until configured).
+      FuseWeb.RateLimiter,
       # Start to serve requests, typically the last entry
       FuseWeb.Endpoint
     ]
