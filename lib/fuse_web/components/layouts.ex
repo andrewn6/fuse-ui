@@ -153,9 +153,8 @@ defmodule FuseWeb.Layouts do
   end
 
   @doc """
-  The Fuse Console application shell: a fixed sidebar (brand, workspace, search,
-  navigation) plus a scrollable main content slot. Matches the "Fuse — Console"
-  design.
+  The Fuse Console application shell: a fixed sidebar (brand, search, navigation)
+  plus a scrollable main content slot. Matches the "Fuse — Console" design.
 
   `current` highlights the active nav item; `counts` is a map like
   `%{environments: 7, hosts: 4, snapshots: 6}` for the sidebar badges.
