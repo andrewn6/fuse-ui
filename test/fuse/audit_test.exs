@@ -69,6 +69,18 @@ defmodule Fuse.AuditTest do
     end
   end
 
+  describe "telemetry" do
+    test "emits a [:fuse, :action] event even when persistence is disabled" do
+      Application.put_env(:fuse, Audit, enabled: false)
+      ref = :telemetry_test.attach_event_handlers(self(), [[:fuse, :action]])
+
+      Audit.record(%{action: "destroy", resource_type: "environment", resource_id: "e"})
+
+      assert_receive {[:fuse, :action], ^ref, %{count: 1},
+                      %{action: "destroy", resource_type: "environment", result: "ok"}}
+    end
+  end
+
   describe "recording through a context" do
     setup do
       {:ok, _} =

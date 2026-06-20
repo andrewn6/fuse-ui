@@ -39,10 +39,15 @@ defmodule Fuse.Audit do
 
   @doc """
   Record a mutating action. `attrs` needs `:action` and `:resource_type`;
-  `:resource_id`, `:actor`, `:metadata`, `:result` are optional. Best-effort.
+  `:resource_id`, `:actor`, `:metadata`, `:result` are optional.
+
+  Always emits a `[:fuse, :action]` telemetry event (observability is independent
+  of whether the audit *log* is persisted). The DB write itself is best-effort
+  and gated by the `enabled?` flag.
   """
   @spec record(map()) :: :ok
   def record(attrs) when is_map(attrs) do
+    emit_telemetry(attrs)
     if enabled?(), do: insert(attrs), else: :ok
   end
 
@@ -88,6 +93,18 @@ defmodule Fuse.Audit do
     e -> log_skip(e)
   catch
     :exit, reason -> log_skip(reason)
+  end
+
+  defp emit_telemetry(attrs) do
+    :telemetry.execute(
+      [:fuse, :action],
+      %{count: 1},
+      %{
+        action: attrs[:action],
+        resource_type: attrs[:resource_type],
+        result: attrs[:result] || "ok"
+      }
+    )
   end
 
   defp resolve_actor(attrs) do
