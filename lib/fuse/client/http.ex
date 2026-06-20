@@ -115,6 +115,11 @@ defmodule Fuse.Client.HTTP do
   @impl true
   def ready, do: request(:get, "/ready")
 
+  # Unauthenticated liveness probe. 200 -> the fuse process is up (independent of
+  # whether its dependencies are ready).
+  @impl true
+  def health, do: request(:get, "/health")
+
   # --- internals ---
 
   defp request(method, path, opts \\ []) do

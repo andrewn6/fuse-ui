@@ -15,6 +15,11 @@ defmodule FuseWeb.Router do
     plug FuseWeb.Plugs.AuditActor
   end
 
+  # Unauthenticated health probes for orchestrators. No auth/CIDR/rate-limit.
+  pipeline :health do
+    plug :accepts, ["json"]
+  end
+
   # Inbound safety for the control-plane API, mirroring fuse's access-control
   # model. Ordered cheapest-gate-first: reject disallowed source networks, then
   # authenticate the bearer token, then rate-limit authenticated writes. Each
@@ -45,6 +50,13 @@ defmodule FuseWeb.Router do
       live "/activity", ActivityLive.Index, :index
       live "/settings", SettingsLive.Index, :index
     end
+  end
+
+  scope "/", FuseWeb do
+    pipe_through :health
+
+    get "/healthz", HealthController, :live
+    get "/readyz", HealthController, :ready
   end
 
   scope "/api/v1", FuseWeb.API do
