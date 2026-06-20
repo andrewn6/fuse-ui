@@ -12,6 +12,7 @@ defmodule FuseWeb.Router do
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug FuseWeb.Plugs.AuditActor
   end
 
   # Inbound safety for the control-plane API, mirroring fuse's access-control

@@ -15,6 +15,8 @@ defmodule FuseWeb.AuthHook do
 
   def on_mount(:default, _params, session, socket) do
     if authenticated?(session) do
+      # attribute audit records created by this LiveView's actions to the console
+      Fuse.Audit.put_actor("console")
       {:cont, socket}
     else
       {:halt, redirect(socket, to: "/login")}
