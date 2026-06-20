@@ -47,13 +47,15 @@ defmodule FuseWeb.RateLimiter do
       write_concurrency: true
     ])
 
-    {:ok, %{window_ms: opts[:window_ms] || 60_000}, prune_interval(opts)}
+    window_ms = opts[:window_ms] || 60_000
+    # prune every window so stale (rolled-over) buckets don't accumulate
+    {:ok, %{window_ms: window_ms}, window_ms}
   end
 
   @impl true
   def handle_info(:timeout, state) do
     prune(state.window_ms)
-    {:noreply, state, prune_interval([])}
+    {:noreply, state, state.window_ms}
   end
 
   # drop entries whose window is older than the current one; cheap match_delete.
@@ -61,6 +63,4 @@ defmodule FuseWeb.RateLimiter do
     current = div(System.system_time(:millisecond), window_ms)
     :ets.select_delete(@table, [{{{:_, :"$1"}, :_}, [{:<, :"$1", current}], [true]}])
   end
-
-  defp prune_interval(opts), do: opts[:window_ms] || 60_000
 end
