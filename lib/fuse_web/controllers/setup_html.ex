@@ -1,5 +1,5 @@
-defmodule FuseWeb.SessionHTML do
-  @moduledoc "Login page for the console."
+defmodule FuseWeb.SetupHTML do
+  @moduledoc "First-run setup page: create the console admin password."
   use FuseWeb, :html
 
   attr :error, :string, default: nil
@@ -13,8 +13,10 @@ defmodule FuseWeb.SessionHTML do
             <.icon name="hero-bolt-solid" class="size-6" />
           </div>
           <div class="text-center">
-            <h1 class="text-[18px] font-semibold tracking-tight text-ink">Fuse Console</h1>
-            <p class="mt-1 text-[13px] text-muted">Sign in to manage your fleet</p>
+            <h1 class="text-[18px] font-semibold tracking-tight text-ink">Welcome to Fuse</h1>
+            <p class="mt-1 text-[13px] text-muted">
+              Set an admin password to secure this console
+            </p>
           </div>
         </div>
 
@@ -27,7 +29,7 @@ defmodule FuseWeb.SessionHTML do
             <span>{@error}</span>
           </div>
 
-          <.form for={%{}} action={~p"/login"} method="post" class="space-y-4">
+          <.form for={%{}} action={~p"/setup"} method="post" class="space-y-4">
             <div>
               <label for="password" class="mb-1.5 block text-[12px] font-medium text-ink">
                 Admin password
@@ -36,9 +38,23 @@ defmodule FuseWeb.SessionHTML do
                 id="password"
                 type="password"
                 name="password"
-                autocomplete="current-password"
+                autocomplete="new-password"
                 autofocus
-                placeholder="••••••••••••••••"
+                minlength="8"
+                placeholder="At least 8 characters"
+                class="w-full rounded-lg border border-rail bg-canvas px-3 py-2 font-mono text-[13px] text-ink outline-none placeholder:text-muted/60 focus:border-brand focus:ring-2 focus:ring-brand/20"
+              />
+            </div>
+            <div>
+              <label for="password_confirmation" class="mb-1.5 block text-[12px] font-medium text-ink">
+                Confirm password
+              </label>
+              <input
+                id="password_confirmation"
+                type="password"
+                name="password_confirmation"
+                autocomplete="new-password"
+                placeholder="Re-enter the password"
                 class="w-full rounded-lg border border-rail bg-canvas px-3 py-2 font-mono text-[13px] text-ink outline-none placeholder:text-muted/60 focus:border-brand focus:ring-2 focus:ring-brand/20"
               />
             </div>
@@ -46,13 +62,13 @@ defmodule FuseWeb.SessionHTML do
               type="submit"
               class="w-full rounded-lg bg-brand px-3.5 py-2.5 text-[13px] font-medium text-white shadow-sm transition hover:bg-brand-strong"
             >
-              Sign in
+              Create password &amp; continue
             </button>
           </.form>
         </div>
 
         <p class="mt-4 text-center text-[11px] text-muted">
-          The admin password was set when this console was first started.
+          This is the only account. Anyone with this password can manage the fleet.
         </p>
       </div>
     </div>

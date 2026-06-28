@@ -8,13 +8,17 @@ defmodule Fuse.SnapshotsTest do
 
   setup do
     # Seed an environment so snapshot creation has a vm to target.
-    {:ok, _} = Fuse.Client.Fake.start_link(environments: [%{id: "vm-1", state: "running", task_id: "t"}])
+    {:ok, _} =
+      Fuse.Client.Fake.start_link(environments: [%{id: "vm-1", state: "running", task_id: "t"}])
+
     :ok
   end
 
   describe "create/2" do
     test "creates and decodes into a Snapshot struct" do
-      assert {:ok, %Snapshot{} = snap} = Snapshots.create("vm-1", %{comment: "nightly", mode: "full"})
+      assert {:ok, %Snapshot{} = snap} =
+               Snapshots.create("vm-1", %{comment: "nightly", mode: "full"})
+
       assert snap.vm_id == "vm-1"
       assert snap.state == "creating"
       assert snap.comment == "nightly"
@@ -41,7 +45,10 @@ defmodule Fuse.SnapshotsTest do
 
         conn
         |> Plug.Conn.put_resp_content_type("application/json")
-        |> Plug.Conn.send_resp(201, Jason.encode!(%{"id" => "snap-1", "vm_id" => "vm-1", "state" => "creating"}))
+        |> Plug.Conn.send_resp(
+          201,
+          Jason.encode!(%{"id" => "snap-1", "vm_id" => "vm-1", "state" => "creating"})
+        )
       end)
 
       assert {:ok, %Snapshot{id: "snap-1"}} =
@@ -55,6 +62,7 @@ defmodule Fuse.SnapshotsTest do
                })
 
       assert_receive {:body, body}
+
       assert body == %{
                "comment" => "c",
                "mode" => "full",

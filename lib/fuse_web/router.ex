@@ -8,6 +8,9 @@ defmodule FuseWeb.Router do
     plug :put_root_layout, html: {FuseWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    # Funnel every browser request to first-run setup until an admin password
+    # exists (no-op once configured, or when enforcement is off).
+    plug FuseWeb.Plugs.RequireSetup
   end
 
   pipeline :api do
@@ -35,14 +38,21 @@ defmodule FuseWeb.Router do
 
     get "/", PageController, :home
 
-    # Browser session login (token -> Phoenix session). Outside the gated block.
+    # First-run setup: create the admin password (only reachable until one exists).
+    get "/setup", SetupController, :new
+    post "/setup", SetupController, :create
+
+    # Browser session login (admin password -> Phoenix session).
     get "/login", SessionController, :new
     post "/login", SessionController, :create
     delete "/logout", SessionController, :delete
 
-    # The console, gated by the session auth hook (open in insecure/no-token mode).
+    # The console. AuthHook gates it behind setup + login; HostGate keeps the
+    # full console out of reach until a host is connected, funnelling to
+    # /onboarding when the fleet is empty.
     live_session :console,
-      on_mount: [FuseWeb.AuthHook, FuseWeb.CommandPalette, FuseWeb.Connection] do
+      on_mount: [FuseWeb.AuthHook, FuseWeb.HostGate, FuseWeb.CommandPalette, FuseWeb.Connection] do
+      live "/onboarding", OnboardingLive, :index
       live "/environments", EnvironmentLive.Index, :index
       live "/environments/:id", EnvironmentLive.Show, :show
       live "/hosts", HostLive.Index, :index

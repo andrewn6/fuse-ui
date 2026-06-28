@@ -6,9 +6,7 @@ defmodule FuseWeb.API.EnvironmentControllerTest do
 
   setup do
     {:ok, _} =
-      Fuse.Client.Fake.start_link(
-        environments: [%{id: "env-1", state: "running", task_id: "t1"}]
-      )
+      Fuse.Client.Fake.start_link(environments: [%{id: "env-1", state: "running", task_id: "t1"}])
 
     :ok
   end

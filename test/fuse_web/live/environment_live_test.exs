@@ -88,23 +88,6 @@ defmodule FuseWeb.EnvironmentLiveTest do
     refute has_element?(view, "#env-env_bbb222")
   end
 
-  test "with a token configured, an authenticated session reaches the console", %{conn: conn} do
-    Application.put_env(:fuse, FuseWeb.Plugs.ApiAuth, token: "dash-token")
-    on_exit(fn -> Application.put_env(:fuse, FuseWeb.Plugs.ApiAuth, token: nil) end)
-
-    conn = Plug.Test.init_test_session(conn, %{"fuse_authenticated" => true})
-
-    {:ok, _view, html} = live(conn, ~p"/environments")
-    assert html =~ "env_aaa111"
-  end
-
-  test "with a token configured, an unauthenticated session is redirected to login", %{conn: conn} do
-    Application.put_env(:fuse, FuseWeb.Plugs.ApiAuth, token: "dash-token")
-    on_exit(fn -> Application.put_env(:fuse, FuseWeb.Plugs.ApiAuth, token: nil) end)
-
-    assert {:error, {:redirect, %{to: "/login"}}} = live(conn, ~p"/environments")
-  end
-
   test "shows an error banner when fuse is unreachable", %{conn: conn} do
     # Simulate fuse being unreachable so the client returns {:error, transport}.
     Application.put_env(:fuse, Fuse.Client.HTTP,

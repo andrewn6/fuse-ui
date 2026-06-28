@@ -29,7 +29,10 @@ defmodule FuseWeb.SettingsLiveTest do
   def stub(conn) do
     conn
     |> Plug.Conn.put_resp_content_type("application/json")
-    |> Plug.Conn.send_resp(200, Jason.encode!(%{"environments" => [], "hosts" => [], "snapshots" => []}))
+    |> Plug.Conn.send_resp(
+      200,
+      Jason.encode!(%{"environments" => [], "hosts" => [], "snapshots" => []})
+    )
   end
 
   test "shows the fuse endpoint and 'Not set' when no inbound token is configured", %{conn: conn} do

@@ -18,7 +18,10 @@ defmodule Fuse.EnvironmentsTest do
   describe "create/1" do
     test "creates and decodes into an Environment struct" do
       assert {:ok, %Environment{} = env} =
-               Environments.create(%{task_id: "t1", spec: %{cpus: 2, ram_mb: 2048, storage_gb: 20}})
+               Environments.create(%{
+                 task_id: "t1",
+                 spec: %{cpus: 2, ram_mb: 2048, storage_gb: 20}
+               })
 
       assert env.task_id == "t1"
       assert env.state == "provisioning"
@@ -76,7 +79,14 @@ defmodule Fuse.EnvironmentsTest do
 
       assert_receive {:body, body}
       assert body["task_id"] == "t1"
-      assert body["spec"] == %{"cpus" => 2, "ram_mb" => 2048, "storage_gb" => 20, "region" => "us-east"}
+
+      assert body["spec"] == %{
+               "cpus" => 2,
+               "ram_mb" => 2048,
+               "storage_gb" => 20,
+               "region" => "us-east"
+             }
+
       assert body["secrets"] == %{"API_KEY" => "x"}
       assert body["startup_script"] == "echo hi"
       assert body["gateway_url"] == "https://gw"

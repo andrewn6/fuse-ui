@@ -35,4 +35,15 @@ defmodule FuseWeb.ConnCase do
     Fuse.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
+
+  @doc "Set the console admin password (simulates completed first-run setup)."
+  def configure_admin(password \\ "test-console-password") do
+    {:ok, _credential} = Fuse.Admin.set_password(password)
+    :ok
+  end
+
+  @doc "Mark a test conn's session authenticated for the console."
+  def log_in(conn) do
+    Plug.Test.init_test_session(conn, %{"fuse_authenticated" => true})
+  end
 end

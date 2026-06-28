@@ -34,6 +34,13 @@ if token = System.get_env("CONTROL_PLANE_TOKEN") do
   config :fuse, FuseWeb.Plugs.ApiAuth, token: token
 end
 
+# Browser console gate (admin password + first-host onboarding). On by default;
+# set CONSOLE_AUTH_ENFORCE=false only if the console is already fronted by your
+# own authentication (e.g. an SSO proxy).
+if System.get_env("CONSOLE_AUTH_ENFORCE") == "false" do
+  config :fuse, FuseWeb.Auth, enforce: false
+end
+
 # Source-network allowlist for the inbound API. Comma-separated CIDRs; unset =
 # open to all sources. Pairs with the bearer token the way fuse does.
 if cidrs = System.get_env("CONTROL_PLANE_ALLOWED_CIDRS") do

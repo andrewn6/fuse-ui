@@ -5,7 +5,9 @@ defmodule Fuse.ErrorTest do
   alias Fuse.Error
 
   test "parses the full envelope with string keys" do
-    body = %{"error" => %{"code" => "not_found", "message" => "no env", "details" => %{"id" => "e1"}}}
+    body = %{
+      "error" => %{"code" => "not_found", "message" => "no env", "details" => %{"id" => "e1"}}
+    }
 
     assert %Error{code: "not_found", message: "no env", details: %{"id" => "e1"}, status: 404} =
              Error.parse(body, 404)

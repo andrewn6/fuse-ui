@@ -43,6 +43,10 @@ config :swoosh, :api_client, false
 config :fuse, Fuse.Mirror, enabled: false
 config :fuse, Fuse.Audit, enabled: false
 
+# Leave the console open in the general suite so existing LiveView tests don't
+# all need a login. The auth/onboarding tests flip enforcement on per-test.
+config :fuse, FuseWeb.Auth, enforce: false
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

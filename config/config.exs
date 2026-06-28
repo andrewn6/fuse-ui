@@ -27,6 +27,11 @@ config :fuse, :event_source, Fuse.EventStream.Source.HTTP
 # fuse token. nil = auth disabled (dev/test); set CONTROL_PLANE_TOKEN in runtime.exs.
 config :fuse, FuseWeb.Plugs.ApiAuth, token: nil
 
+# Browser-console auth gate (admin password + first-host onboarding). On by
+# default so a deployed console is never open; disabled in config/test.exs and
+# overridable via CONSOLE_AUTH_ENFORCE in runtime.exs.
+config :fuse, FuseWeb.Auth, enforce: true
+
 # Resource caps enforced before a create is forwarded to fuse. Generous defaults
 # that won't reject normal plans; tune per deployment. A nil cap means "no limit".
 config :fuse, Fuse.Bounds,
