@@ -8,17 +8,29 @@ defmodule FuseWeb.Router do
     plug :put_root_layout, html: {FuseWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    # Funnel every browser request to first-run setup until an admin password
+    # exists (no-op once configured, or when enforcement is off).
+    plug FuseWeb.Plugs.RequireSetup
   end
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug FuseWeb.Plugs.AuditActor
   end
 
-  # Inbound auth for the control-plane API. Mirrors fuse's access-control model
-  # (bearer token now; CIDR allowlist to follow in the safety round). No-op when
-  # CONTROL_PLANE_TOKEN is unset, so this layer is opt-in per deployment.
+  # Unauthenticated health probes for orchestrators. No auth/CIDR/rate-limit.
+  pipeline :health do
+    plug :accepts, ["json"]
+  end
+
+  # Inbound safety for the control-plane API, mirroring fuse's access-control
+  # model. Ordered cheapest-gate-first: reject disallowed source networks, then
+  # authenticate the bearer token, then rate-limit authenticated writes. Each
+  # plug is a no-op until configured, so this layer is opt-in per deployment.
   pipeline :api_protected do
+    plug FuseWeb.Plugs.CidrAllowlist
     plug FuseWeb.Plugs.ApiAuth
+    plug FuseWeb.Plugs.RateLimiter
   end
 
   scope "/", FuseWeb do
@@ -26,14 +38,21 @@ defmodule FuseWeb.Router do
 
     get "/", PageController, :home
 
-    # Browser session login (token -> Phoenix session). Outside the gated block.
+    # First-run setup: create the admin password (only reachable until one exists).
+    get "/setup", SetupController, :new
+    post "/setup", SetupController, :create
+
+    # Browser session login (admin password -> Phoenix session).
     get "/login", SessionController, :new
     post "/login", SessionController, :create
     delete "/logout", SessionController, :delete
 
-    # The console, gated by the session auth hook (open in insecure/no-token mode).
+    # The console. AuthHook gates it behind setup + login; HostGate keeps the
+    # full console out of reach until a host is connected, funnelling to
+    # /onboarding when the fleet is empty.
     live_session :console,
-      on_mount: [FuseWeb.AuthHook, FuseWeb.CommandPalette, FuseWeb.Connection] do
+      on_mount: [FuseWeb.AuthHook, FuseWeb.HostGate, FuseWeb.CommandPalette, FuseWeb.Connection] do
+      live "/onboarding", OnboardingLive, :index
       live "/environments", EnvironmentLive.Index, :index
       live "/environments/:id", EnvironmentLive.Show, :show
       live "/hosts", HostLive.Index, :index
@@ -41,6 +60,13 @@ defmodule FuseWeb.Router do
       live "/activity", ActivityLive.Index, :index
       live "/settings", SettingsLive.Index, :index
     end
+  end
+
+  scope "/", FuseWeb do
+    pipe_through :health
+
+    get "/healthz", HealthController, :live
+    get "/readyz", HealthController, :ready
   end
 
   scope "/api/v1", FuseWeb.API do

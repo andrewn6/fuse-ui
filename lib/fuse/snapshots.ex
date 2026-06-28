@@ -8,8 +8,10 @@ defmodule Fuse.Snapshots do
   error shape.
   """
 
+  alias Fuse.Audit
   alias Fuse.Client
   alias Fuse.Error
+  alias Fuse.Mirror
   alias Fuse.Snapshots.Snapshot
 
   @type result(t) :: {:ok, t} | {:error, Error.t()}
@@ -27,7 +29,10 @@ defmodule Fuse.Snapshots do
   def create(vm_id, attrs \\ %{}) do
     with {:ok, vm_id} <- validate_vm_id(vm_id),
          {:ok, map} <- Client.create_snapshot(vm_id, build_create_params(attrs)) do
-      {:ok, Snapshot.from_wire(map)}
+      snap = Snapshot.from_wire(map)
+      Mirror.upsert_snapshot(snap)
+      audit("create", snap.id, %{"vm_id" => vm_id})
+      {:ok, snap}
     end
   end
 
@@ -38,7 +43,9 @@ defmodule Fuse.Snapshots do
   @spec list(map()) :: result([Snapshot.t()])
   def list(filters \\ %{}) do
     with {:ok, items} <- Client.list_snapshots(filters) do
-      {:ok, Enum.map(items, &Snapshot.from_wire/1)}
+      snaps = Enum.map(items, &Snapshot.from_wire/1)
+      Mirror.upsert_snapshots(snaps)
+      {:ok, snaps}
     end
   end
 
@@ -46,19 +53,40 @@ defmodule Fuse.Snapshots do
   @spec get(String.t()) :: result(Snapshot.t())
   def get(id) do
     with {:ok, map} <- Client.get_snapshot(id) do
-      {:ok, Snapshot.from_wire(map)}
+      snap = Snapshot.from_wire(map)
+      Mirror.upsert_snapshot(snap)
+      {:ok, snap}
     end
   end
 
   @doc "Restore a snapshot."
   @spec restore(String.t()) :: result(nil)
-  def restore(id), do: Client.restore_snapshot(id)
+  def restore(id) do
+    with {:ok, result} <- Client.restore_snapshot(id) do
+      audit("restore", id)
+      {:ok, result}
+    end
+  end
 
   @doc "Delete a snapshot."
   @spec delete(String.t()) :: result(nil)
-  def delete(id), do: Client.delete_snapshot(id)
+  def delete(id) do
+    with {:ok, result} <- Client.delete_snapshot(id) do
+      audit("delete", id)
+      {:ok, result}
+    end
+  end
 
   # --- internals ---
+
+  defp audit(action, resource_id, metadata \\ %{}) do
+    Audit.record(%{
+      action: action,
+      resource_type: "snapshot",
+      resource_id: resource_id,
+      metadata: metadata
+    })
+  end
 
   defp build_create_params(attrs) do
     for key <- @create_keys,

@@ -54,7 +54,12 @@ defmodule Fuse.EventStream.Source.HTTPTest do
   end
 
   test "maps status codes to Error codes" do
-    for {status, code} <- [{404, "not_found"}, {409, "conflict"}, {500, "internal"}, {403, "unavailable"}] do
+    for {status, code} <- [
+          {404, "not_found"},
+          {409, "conflict"},
+          {500, "internal"},
+          {403, "unavailable"}
+        ] do
       result =
         with_plug(
           fn conn -> respond(conn, status, %{}) end,

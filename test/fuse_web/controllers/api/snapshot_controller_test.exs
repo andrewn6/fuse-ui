@@ -6,7 +6,9 @@ defmodule FuseWeb.API.SnapshotControllerTest do
 
   setup do
     # Seed an environment so snapshot creation has a vm to target.
-    {:ok, _} = Fuse.Client.Fake.start_link(environments: [%{id: "vm-1", state: "running", task_id: "t"}])
+    {:ok, _} =
+      Fuse.Client.Fake.start_link(environments: [%{id: "vm-1", state: "running", task_id: "t"}])
+
     :ok
   end
 
@@ -15,7 +17,10 @@ defmodule FuseWeb.API.SnapshotControllerTest do
     conn =
       conn
       |> put_req_header("content-type", "application/json")
-      |> post("/api/v1/environments/vm-1/snapshots", Jason.encode!(%{"comment" => "c", "mode" => "full"}))
+      |> post(
+        "/api/v1/environments/vm-1/snapshots",
+        Jason.encode!(%{"comment" => "c", "mode" => "full"})
+      )
 
     json_response(conn, 201)["data"]
   end

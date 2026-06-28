@@ -10,10 +10,13 @@ defmodule Fuse.Environments do
   always match on a single error shape.
   """
 
+  alias Fuse.Audit
+  alias Fuse.Bounds
   alias Fuse.Client
   alias Fuse.Environments.Environment
   alias Fuse.Error
   alias Fuse.Manifest
+  alias Fuse.Mirror
   alias Fuse.ResourceSpec
 
   @type result(t) :: {:ok, t} | {:error, Error.t()}
@@ -24,7 +27,9 @@ defmodule Fuse.Environments do
   @spec list(map()) :: result([Environment.t()])
   def list(filters \\ %{}) do
     with {:ok, items} <- Client.list_environments(filters) do
-      {:ok, Enum.map(items, &Environment.from_wire/1)}
+      envs = Enum.map(items, &Environment.from_wire/1)
+      Mirror.upsert_environments(envs)
+      {:ok, envs}
     end
   end
 
@@ -32,7 +37,9 @@ defmodule Fuse.Environments do
   @spec get(String.t()) :: result(Environment.t())
   def get(id) do
     with {:ok, map} <- Client.get_environment(id) do
-      {:ok, Environment.from_wire(map)}
+      env = Environment.from_wire(map)
+      Mirror.upsert_environment(env)
+      {:ok, env}
     end
   end
 
@@ -51,7 +58,10 @@ defmodule Fuse.Environments do
   def create(attrs) when is_map(attrs) do
     with {:ok, params} <- build_create_params(attrs),
          {:ok, map} <- Client.create_environment(params) do
-      {:ok, Environment.from_wire(map)}
+      env = Environment.from_wire(map)
+      Mirror.upsert_environment(env)
+      audit("create", env.id, %{"task_id" => env.task_id})
+      {:ok, env}
     end
   end
 
@@ -59,23 +69,44 @@ defmodule Fuse.Environments do
   @spec drain(String.t()) :: result(Environment.t() | nil)
   def drain(id) do
     with {:ok, map} <- Client.drain_environment(id) do
+      audit("drain", id)
       {:ok, decode_maybe(map)}
     end
   end
 
   @doc "Rotate the environment's guest token."
   @spec rotate_token(String.t()) :: result(nil)
-  def rotate_token(id), do: Client.rotate_token(id)
+  def rotate_token(id) do
+    with {:ok, result} <- Client.rotate_token(id) do
+      audit("rotate_token", id)
+      {:ok, result}
+    end
+  end
 
   @doc "Destroy an environment."
   @spec destroy(String.t()) :: result(nil)
-  def destroy(id), do: Client.destroy_environment(id)
+  def destroy(id) do
+    with {:ok, result} <- Client.destroy_environment(id) do
+      audit("destroy", id)
+      {:ok, result}
+    end
+  end
 
   # --- internals ---
+
+  defp audit(action, resource_id, metadata \\ %{}) do
+    Audit.record(%{
+      action: action,
+      resource_type: "environment",
+      resource_id: resource_id,
+      metadata: metadata
+    })
+  end
 
   defp build_create_params(attrs) do
     with {:ok, task_id} <- fetch_required(attrs, :task_id),
          {:ok, spec} <- build_spec(fetch(attrs, :spec)),
+         :ok <- Bounds.check(spec),
          {:ok, manifest_inline} <- build_manifest(attrs) do
       params =
         %{"task_id" => task_id, "spec" => ResourceSpec.to_wire(spec)}
@@ -99,7 +130,9 @@ defmodule Fuse.Environments do
   end
 
   defp build_spec(nil), do: {:error, invalid_argument("spec is required")}
-  defp build_spec(_other), do: {:error, invalid_argument("spec must be a map or %Fuse.ResourceSpec{}")}
+
+  defp build_spec(_other),
+    do: {:error, invalid_argument("spec must be a map or %Fuse.ResourceSpec{}")}
 
   defp build_manifest(attrs) do
     cond do
@@ -108,8 +141,11 @@ defmodule Fuse.Environments do
 
       not is_nil(fetch(attrs, :manifest)) ->
         case Manifest.encode(fetch(attrs, :manifest)) do
-          {:ok, encoded} -> {:ok, encoded}
-          {:error, reason} -> {:error, invalid_argument("invalid manifest", %{"reason" => inspect(reason)})}
+          {:ok, encoded} ->
+            {:ok, encoded}
+
+          {:error, reason} ->
+            {:error, invalid_argument("invalid manifest", %{"reason" => inspect(reason)})}
         end
 
       true ->

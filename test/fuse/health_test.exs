@@ -23,4 +23,23 @@ defmodule Fuse.HealthTest do
     {:ok, _} = Fuse.Client.Fake.start_link(ready: {:error, error})
     assert Health.check() == :unreachable
   end
+
+  test "readiness/0 is an alias for check/0" do
+    {:ok, _} = Fuse.Client.Fake.start_link()
+    assert Health.readiness() == :ok
+  end
+
+  test "liveness/0 probes /health independently of readiness" do
+    error = %Error{code: "unavailable", message: "not ready", status: 503}
+    {:ok, _} = Fuse.Client.Fake.start_link(ready: {:error, error}, health: {:ok, %{}})
+
+    assert Health.check() == :degraded
+    assert Health.liveness() == :ok
+  end
+
+  test "liveness/0 is unreachable on a transport error" do
+    error = %Error{code: "transport_error", message: "econnrefused"}
+    {:ok, _} = Fuse.Client.Fake.start_link(health: {:error, error})
+    assert Health.liveness() == :unreachable
+  end
 end

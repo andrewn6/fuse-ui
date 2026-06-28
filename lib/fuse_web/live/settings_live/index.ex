@@ -26,7 +26,13 @@ defmodule FuseWeb.SettingsLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.console current={:settings} counts={@counts} connection={@connection} flash={@flash}>
+    <Layouts.console
+      current={:settings}
+      counts={@counts}
+      connection={@connection}
+      has_hosts={@has_hosts?}
+      flash={@flash}
+    >
       <div class="mx-auto w-full max-w-5xl px-8 py-7">
         <div>
           <h1 class="text-[22px] font-semibold tracking-tight">Settings</h1>

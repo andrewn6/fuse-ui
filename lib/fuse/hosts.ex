@@ -8,6 +8,7 @@ defmodule Fuse.Hosts do
   error shape.
   """
 
+  alias Fuse.Audit
   alias Fuse.Client
   alias Fuse.Error
   alias Fuse.Hosts.Host
@@ -24,7 +25,9 @@ defmodule Fuse.Hosts do
   def register(attrs) when is_map(attrs) do
     with {:ok, params} <- build_register_params(attrs),
          {:ok, map} <- Client.register_host(params) do
-      {:ok, Host.from_wire(map)}
+      host = Host.from_wire(map)
+      audit("register", host.id)
+      {:ok, host}
     end
   end
 
@@ -46,17 +49,41 @@ defmodule Fuse.Hosts do
 
   @doc "Cordon a host (stop scheduling new VMs onto it)."
   @spec cordon(String.t()) :: result(nil)
-  def cordon(id), do: Client.cordon_host(id)
+  def cordon(id) do
+    with {:ok, result} <- Client.cordon_host(id) do
+      audit("cordon", id)
+      {:ok, result}
+    end
+  end
 
   @doc "Uncordon a host (return it to the schedulable pool)."
   @spec uncordon(String.t()) :: result(nil)
-  def uncordon(id), do: Client.uncordon_host(id)
+  def uncordon(id) do
+    with {:ok, result} <- Client.uncordon_host(id) do
+      audit("uncordon", id)
+      {:ok, result}
+    end
+  end
 
   @doc "Remove a host from the cluster."
   @spec remove(String.t()) :: result(nil)
-  def remove(id), do: Client.remove_host(id)
+  def remove(id) do
+    with {:ok, result} <- Client.remove_host(id) do
+      audit("remove", id)
+      {:ok, result}
+    end
+  end
 
   # --- internals ---
+
+  defp audit(action, resource_id, metadata \\ %{}) do
+    Audit.record(%{
+      action: action,
+      resource_type: "host",
+      resource_id: resource_id,
+      metadata: metadata
+    })
+  end
 
   defp build_register_params(attrs) do
     with {:ok, id} <- require_field(attrs, :id),

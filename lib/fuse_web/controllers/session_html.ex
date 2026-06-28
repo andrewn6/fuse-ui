@@ -14,7 +14,7 @@ defmodule FuseWeb.SessionHTML do
           </div>
           <div class="text-center">
             <h1 class="text-[18px] font-semibold tracking-tight text-ink">Fuse Console</h1>
-            <p class="mt-1 text-[13px] text-muted">Sign in with your control-plane token</p>
+            <p class="mt-1 text-[13px] text-muted">Sign in to manage your fleet</p>
           </div>
         </div>
 
@@ -29,13 +29,13 @@ defmodule FuseWeb.SessionHTML do
 
           <.form for={%{}} action={~p"/login"} method="post" class="space-y-4">
             <div>
-              <label for="token" class="mb-1.5 block text-[12px] font-medium text-ink">
-                Control-plane token
+              <label for="password" class="mb-1.5 block text-[12px] font-medium text-ink">
+                Admin password
               </label>
               <input
-                id="token"
+                id="password"
                 type="password"
-                name="token"
+                name="password"
                 autocomplete="current-password"
                 autofocus
                 placeholder="••••••••••••••••"
@@ -52,7 +52,7 @@ defmodule FuseWeb.SessionHTML do
         </div>
 
         <p class="mt-4 text-center text-[11px] text-muted">
-          The token is set via <code class="font-mono">CONTROL_PLANE_TOKEN</code>.
+          The admin password was set when this console was first started.
         </p>
       </div>
     </div>

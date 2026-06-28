@@ -153,9 +153,8 @@ defmodule FuseWeb.Layouts do
   end
 
   @doc """
-  The Fuse Console application shell: a fixed sidebar (brand, workspace, search,
-  navigation) plus a scrollable main content slot. Matches the "Fuse — Console"
-  design.
+  The Fuse Console application shell: a fixed sidebar (brand, search, navigation)
+  plus a scrollable main content slot. Matches the "Fuse — Console" design.
 
   `current` highlights the active nav item; `counts` is a map like
   `%{environments: 7, hosts: 4, snapshots: 6}` for the sidebar badges.
@@ -170,6 +169,10 @@ defmodule FuseWeb.Layouts do
   attr :connection, :atom,
     default: :checking,
     doc: ":checking | :ok | :degraded | :unreachable (from FuseWeb.Connection)"
+
+  attr :has_hosts, :boolean,
+    default: true,
+    doc: "false locks the nav to onboarding + settings until a host is connected"
 
   slot :inner_block, required: true
 
@@ -211,7 +214,7 @@ defmodule FuseWeb.Layouts do
           </.link>
         </div>
 
-        <div class="px-3 pt-3">
+        <div :if={@has_hosts} class="px-3 pt-3">
           <button
             type="button"
             phx-click={JS.dispatch("cmdk:open")}
@@ -223,7 +226,7 @@ defmodule FuseWeb.Layouts do
           </button>
         </div>
 
-        <nav class="flex-1 overflow-y-auto px-3 py-4">
+        <nav :if={@has_hosts} class="flex-1 overflow-y-auto px-3 py-4">
           <p class="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
             Infrastructure
           </p>
@@ -260,6 +263,27 @@ defmodule FuseWeb.Layouts do
               label="Activity"
               navigate={~p"/activity"}
               active={@current == :activity}
+            />
+            <.nav_item
+              icon="hero-cog-6-tooth"
+              label="Settings"
+              navigate={~p"/settings"}
+              active={@current == :settings}
+            />
+          </div>
+        </nav>
+
+        <%!-- locked nav: until a host is connected, only onboarding + settings --%>
+        <nav :if={!@has_hosts} class="flex-1 overflow-y-auto px-3 py-4">
+          <p class="px-2.5 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+            Get started
+          </p>
+          <div class="space-y-0.5">
+            <.nav_item
+              icon="hero-server-stack"
+              label="Connect a host"
+              navigate={~p"/onboarding"}
+              active={false}
             />
             <.nav_item
               icon="hero-cog-6-tooth"
@@ -788,16 +812,8 @@ defmodule FuseWeb.Layouts do
   defp conn_label(:unreachable), do: "Unreachable"
   defp conn_label(_), do: "Checking…"
 
-  # honest auth mode for the footer (no fake user identity)
-  defp auth_label, do: if(console_token_configured?(), do: "Token auth", else: "Open access")
+  # honest auth mode for the footer (no per-user identity; one shared password)
+  defp auth_label, do: if(FuseWeb.Auth.enforce?(), do: "Signed in", else: "Open access")
 
-  defp auth_icon,
-    do: if(console_token_configured?(), do: "hero-lock-closed", else: "hero-lock-open")
-
-  defp console_token_configured? do
-    case (Application.get_env(:fuse, FuseWeb.Plugs.ApiAuth) || [])[:token] do
-      token when is_binary(token) and token != "" -> true
-      _ -> false
-    end
-  end
+  defp auth_icon, do: if(FuseWeb.Auth.enforce?(), do: "hero-lock-closed", else: "hero-lock-open")
 end

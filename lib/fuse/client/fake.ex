@@ -39,6 +39,7 @@ defmodule Fuse.Client.Fake do
       # the canned readiness result; override to simulate degraded/unreachable,
       # e.g. ready: {:error, %Fuse.Error{status: 503}}
       ready: opts[:ready] || {:ok, %{"status" => "ok"}},
+      health: opts[:health] || {:ok, %{"status" => "ok"}},
       seq: 0
     }
 
@@ -175,6 +176,9 @@ defmodule Fuse.Client.Fake do
 
   @impl true
   def ready, do: Agent.get(agent(), & &1.ready)
+
+  @impl true
+  def health, do: Agent.get(agent(), & &1.health)
 
   # --- internals ---
 

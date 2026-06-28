@@ -34,6 +34,28 @@ if token = System.get_env("CONTROL_PLANE_TOKEN") do
   config :fuse, FuseWeb.Plugs.ApiAuth, token: token
 end
 
+# Browser console gate (admin password + first-host onboarding). On by default;
+# set CONSOLE_AUTH_ENFORCE=false only if the console is already fronted by your
+# own authentication (e.g. an SSO proxy).
+if System.get_env("CONSOLE_AUTH_ENFORCE") == "false" do
+  config :fuse, FuseWeb.Auth, enforce: false
+end
+
+# Source-network allowlist for the inbound API. Comma-separated CIDRs; unset =
+# open to all sources. Pairs with the bearer token the way fuse does.
+if cidrs = System.get_env("CONTROL_PLANE_ALLOWED_CIDRS") do
+  parsed = cidrs |> String.split(",", trim: true) |> Enum.map(&String.trim/1)
+  config :fuse, FuseWeb.Plugs.CidrAllowlist, cidrs: parsed
+end
+
+# Per-IP write rate limit. Unset = unthrottled. CONTROL_PLANE_RATE_LIMIT is the
+# number of writes allowed per window (default window 60s, overridable in ms).
+if limit = System.get_env("CONTROL_PLANE_RATE_LIMIT") do
+  config :fuse, FuseWeb.Plugs.RateLimiter,
+    limit: String.to_integer(limit),
+    window_ms: String.to_integer(System.get_env("CONTROL_PLANE_RATE_WINDOW_MS") || "60000")
+end
+
 if config_env() == :prod do
   database_path =
     System.get_env("DATABASE_PATH") ||

@@ -117,7 +117,10 @@ defmodule FuseWeb.SnapshotLiveTest do
     Application.put_env(:fuse, Fuse.Client.HTTP,
       base_url: "http://fuse.test",
       token: "t",
-      req_options: [retry: false, plug: fn conn -> Req.Test.transport_error(conn, :econnrefused) end]
+      req_options: [
+        retry: false,
+        plug: fn conn -> Req.Test.transport_error(conn, :econnrefused) end
+      ]
     )
 
     {:ok, _view, html} = live(conn, ~p"/snapshots")

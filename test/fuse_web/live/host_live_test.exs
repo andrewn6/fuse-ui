@@ -109,4 +109,38 @@ defmodule FuseWeb.HostLiveTest do
 
     assert html =~ "Host registered."
   end
+
+  test "the register form prefills the medium node preset and shows field hints", %{conn: conn} do
+    {:ok, _view, html} = live(conn, ~p"/hosts")
+
+    assert html =~ ~s(value="32")
+    assert html =~ ~s(value="65536")
+    assert html =~ "Total vCPUs to offer fuse."
+    assert html =~ "Hard cap on concurrent microVMs"
+  end
+
+  test "choosing a node preset updates the capacity fields", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/hosts")
+
+    html = render_click(view, "preset", %{"size" => "small"})
+    assert html =~ ~s(value="8")
+    refute html =~ ~s(value="32")
+
+    html = render_click(view, "preset", %{"size" => "large"})
+    assert html =~ ~s(value="64")
+  end
+
+  test "switching a preset preserves already-entered fields", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/hosts")
+
+    # simulate typing id/url (phx-change), then pick a preset
+    view
+    |> form("form[phx-submit='register_host']", host: %{"id" => "host_x", "url" => "https://h"})
+    |> render_change()
+
+    html = render_click(view, "preset", %{"size" => "large"})
+
+    assert html =~ ~s(value="host_x")
+    assert html =~ ~s(value="64")
+  end
 end

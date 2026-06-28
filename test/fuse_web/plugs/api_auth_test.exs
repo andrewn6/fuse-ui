@@ -48,7 +48,12 @@ defmodule FuseWeb.Plugs.ApiAuthTest do
         |> put_req_header("authorization", "Token #{@token}")
         |> get("/api/v1/hosts")
 
-      assert %{"errors" => %{"code" => "unauthorized", "message" => "missing or malformed credentials"}} =
+      assert %{
+               "errors" => %{
+                 "code" => "unauthorized",
+                 "message" => "missing or malformed credentials"
+               }
+             } =
                json_response(conn, 401)
     end
 
